@@ -558,12 +558,25 @@ window.votarItinerario = async function(n){
     document.getElementById('avisoEgelIt1').style.display='block';
   }
 
-  // Guardar voto en Firebase (solo primera vez en sesión)
-  const snap = await get(ref(db,'config/votos'));
-  const v = snap.val()||{it1:0,it2:0};
+  // Guardar voto en Firebase — un voto por matrícula (persistente)
+  const matKey = matVal.toUpperCase().replace(/[^A-Z0-9]/g,'_');
+  const votoMatSnap = await get(ref(db,'config/votos_mat/'+matKey));
+  if(votoMatSnap.exists()){
+    // Ya votó antes — restaurar su voto anterior sin sumar de nuevo
+    sessionStorage.setItem('v_voto_it', votoMatSnap.val());
+    const msgEl2 = document.getElementById('it-msg');
+    msgEl2.style.display='block';
+    msgEl2.innerHTML='ℹ️ Ya registraste tu preferencia por el <strong>Itinerario '+votoMatSnap.val()+'</strong> anteriormente. Solo se cuenta un voto por alumno.';
+    document.getElementById('bloqueMatricula').style.display='none';
+    document.getElementById('bloqueAceptacion').style.display='block';
+    return;
+  }
   if(!sessionStorage.getItem('v_voto_it')){
+    const snap = await get(ref(db,'config/votos'));
+    const v = snap.val()||{it1:0,it2:0};
     v['it'+n] = (v['it'+n]||0) + 1;
     await update(ref(db,'config/votos'), v);
+    await update(ref(db,'config/votos_mat'), {[matKey]: n});
     sessionStorage.setItem('v_voto_it', n);
   }
 
@@ -1264,6 +1277,23 @@ window.cargarStatusItinerarioAdmin=async function(){
     html+=`<div style="color:#0A7455;font-weight:700">✅ Itinerario ${cfg.itinerarioElegido} ya definido (${cfg.fechaDecision?.split('T')[0]||''})</div>`;
   } else {
     html+=`<div style="color:#C8000A;font-weight:600">⏳ Aún no decidido — alumnos en espera</div>`;
+  }
+  // Tabla de votos por matrícula
+  const votSnap = await get(ref(db,'config/votos_mat'));
+  const votMat = votSnap.val()||{};
+  const votKeys = Object.keys(votMat);
+  if(votKeys.length>0){
+    html+=`<div style="margin-top:10px;font-size:11px;font-weight:700;color:#1A2332;margin-bottom:4px">📋 Votos por alumno (${votKeys.length}):</div>`;
+    html+=`<table style="width:100%;border-collapse:collapse;font-size:11px">`;
+    html+=`<tr><th style="background:#1A2332;color:#fff;padding:5px 8px;text-align:left">Matrícula</th><th style="background:#1A2332;color:#fff;padding:5px 8px;text-align:left">Itinerario</th></tr>`;
+    votKeys.forEach(mat=>{
+      const it=votMat[mat];
+      const color=it===1?'#0A7455':'#1565C0';
+      html+=`<tr><td style="padding:4px 8px;border-bottom:1px solid #EEF2F6">${mat.replace(/_/g,'')}</td><td style="padding:4px 8px;border-bottom:1px solid #EEF2F6;color:${color};font-weight:700">Itinerario ${it}</td></tr>`;
+    });
+    html+=`</table>`;
+  } else {
+    html+=`<div style="margin-top:8px;font-size:11px;color:#9AABB8">Sin votos registrados aún.</div>`;
   }
   if(el) el.innerHTML=html;
 }
