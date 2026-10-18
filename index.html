@@ -320,7 +320,7 @@ body{position:relative}
     <div id="bloqueMatricula" style="background:#F8FAFC;border:1.5px solid #D2DCE8;border-radius:10px;padding:14px 16px;margin-bottom:18px;font-family:'IBM Plex Sans',sans-serif">
       <label style="font-size:12px;font-weight:700;color:#1A2332;display:block;margin-bottom:6px">Ingresa tu matrícula antes de votar <span style="color:#C8000A">*</span></label>
       <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" id="inputMatriculaIt" placeholder="Ej. U20220001" maxlength="12"
+        <input type="text" id="inputMatriculaIt" placeholder="Ej. U20220001" maxlength="13"
           style="flex:1;padding:9px 12px;border:1.5px solid #D2DCE8;border-radius:8px;font-family:'IBM Plex Sans',sans-serif;font-size:14px;text-transform:uppercase;outline:none"
           oninput="this.value=this.value.toUpperCase();sessionStorage.setItem('v_mat',this.value.trim())"
           onkeydown="if(event.key==='Enter')document.getElementById('cardIt1').focus()">
