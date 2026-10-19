@@ -320,12 +320,12 @@ body{position:relative}
     <div id="bloqueMatricula" style="background:#F8FAFC;border:1.5px solid #D2DCE8;border-radius:10px;padding:14px 16px;margin-bottom:18px;font-family:'IBM Plex Sans',sans-serif">
       <label style="font-size:12px;font-weight:700;color:#1A2332;display:block;margin-bottom:6px">Ingresa tu matrícula antes de votar <span style="color:#C8000A">*</span></label>
       <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" id="inputMatriculaIt" placeholder="Ej. U20220001" maxlength="13"
-          style="flex:1;padding:9px 12px;border:1.5px solid #D2DCE8;border-radius:8px;font-family:'IBM Plex Sans',sans-serif;font-size:14px;text-transform:uppercase;outline:none"
-          oninput="this.value=this.value.toUpperCase();sessionStorage.setItem('v_mat',this.value.trim())"
+        <input type="text" id="inputMatriculaIt" placeholder="U25XXXXXNXXXX" maxlength="13"
+          style="flex:1;padding:9px 12px;border:1.5px solid #D2DCE8;border-radius:8px;font-family:'IBM Plex Sans',sans-serif;font-size:15px;letter-spacing:1px;text-transform:uppercase;outline:none"
+          oninput="formatearMatricula(this)"
           onkeydown="if(event.key==='Enter')document.getElementById('cardIt1').focus()">
       </div>
-      <div style="font-size:11px;color:#6B8090;margin-top:5px">Tu matrícula es necesaria para verificar si tienes restricciones por el examen EGEL.</div>
+      <div id="matHint" style="font-size:11px;color:#6B8090;margin-top:5px">Formato: U + 2 dígitos año + 5 dígitos + N + 4 dígitos &nbsp;·&nbsp; Ej: <strong>U2503057N0110</strong></div>
     </div>
 
     <!-- Cards itinerarios -->
@@ -462,6 +462,30 @@ const COSTO_TRANSPORTE = 1300;
 const COSTO_HOSPEDAJE  = 350;
 const TOTAL_ASIENTOS   = 20;
 const ADMIN_PW         = "sabes2026admin"; // cambia en admin panel también
+const ADMIN_COOKIE     = "sigva_coord_session";
+
+// ── Cookie helpers ──────────────────────────────
+function setCookie(name, value, days){
+  const d = new Date();
+  d.setTime(d.getTime() + days*24*60*60*1000);
+  document.cookie = name+'='+encodeURIComponent(value)+';expires='+d.toUTCString()+';path=/;SameSite=Strict';
+}
+function getCookie(name){
+  const match = document.cookie.match(new RegExp('(?:^|; )'+name+'=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+function deleteCookie(name){
+  document.cookie = name+'=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/';
+}
+
+// ── Tipo de matrícula ───────────────────────────
+function tipoMatricula(mat){
+  if(!mat) return null;
+  const m = mat.trim().toUpperCase();
+  if(/^\d+$/.test(m)) return 'docente';       // solo números → empleado SABES
+  if(/^U\d{2}\d{5}N\d{4}$/.test(m)) return 'alumno';
+  return 'otro';
+}
 
 const LAYOUT = [
   { asientos:[1],          nota:"Copiloto / puerta delantera" },
@@ -499,6 +523,36 @@ window.irAItinerario = function(){
 }
 
 // Detectar generación de matrícula (prefijo U20, U22, U23)
+function formatearMatricula(input){
+  // Máscara: U##xxxxxN#### (13 chars)
+  // Posición: 0=U, 1-2=dígitos año, 3-7=dígitos, 8=N, 9-12=dígitos
+  let raw = input.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  let out = '';
+  for(let i=0; i<raw.length && i<13; i++){
+    if(i===0){
+      out += 'U'; // siempre U
+      if(raw[i]!=='U') i--; // si puso otra cosa, la descarta
+    } else if(i>=1 && i<=2){
+      if(/\d/.test(raw[i])) out += raw[i]; else i--;
+    } else if(i>=3 && i<=7){
+      if(/\d/.test(raw[i])) out += raw[i]; else i--;
+    } else if(i===8){
+      out += 'N'; // siempre N
+      if(raw[i]!=='N') i--;
+    } else if(i>=9 && i<=12){
+      if(/\d/.test(raw[i])) out += raw[i]; else i--;
+    }
+  }
+  input.value = out;
+  sessionStorage.setItem('v_mat', out.trim());
+  // Indicador visual de avance
+  const hint = document.getElementById('matHint');
+  if(hint){
+    if(out.length===13) hint.style.color='#0A7455';
+    else hint.style.color='#6B8090';
+  }
+}
+
 function generacionMat(mat){
   if(!mat) return null;
   const m = mat.toUpperCase();
@@ -529,13 +583,28 @@ window.votarItinerario = async function(n){
   // Validar matrícula
   const inputMat = document.getElementById('inputMatriculaIt');
   const matVal = (inputMat ? inputMat.value.trim() : '') || sessionStorage.getItem('v_mat') || '';
+  const matRegex = /^U\d{2}\d{5}N\d{4}$/;
+  const hint = document.getElementById('matHint');
   if(!matVal){
     inputMat.style.borderColor='#C8000A';
     inputMat.placeholder='⚠️ Ingresa tu matrícula primero';
     inputMat.focus();
     return;
   }
-  inputMat.style.borderColor='#D2DCE8';
+  const tipo = tipoMatricula(matVal);
+  if(tipo==='docente'){
+    inputMat.style.borderColor='#1565C0';
+    if(hint){ hint.style.color='#1565C0'; hint.textContent='👨‍🏫 Identificado como Docente/Empleado SABES ('+matVal+')'; }
+    // Docente puede votar normalmente, continuar
+  } else if(!matRegex.test(matVal)){
+    inputMat.style.borderColor='#C8000A';
+    if(hint){ hint.style.color='#C8000A'; hint.textContent='⚠️ Matrícula incompleta o con formato incorrecto. Ejemplo: U2503057N0110'; }
+    inputMat.focus();
+    return;
+  } else {
+    inputMat.style.borderColor='#22C55E';
+    if(hint){ hint.style.color='#0A7455'; hint.textContent='✅ Matrícula válida'; }
+  }
   sessionStorage.setItem('v_mat', matVal);
 
   // Actualizar selección visual
@@ -557,6 +626,28 @@ window.votarItinerario = async function(n){
   if(n===1){
     document.getElementById('avisoEgelIt1').style.display='block';
   }
+
+  // Limpiar votos con matrícula mal formada que pudieran existir en Firebase
+  try {
+    const todosVotosSnap = await get(ref(db,'config/votos_mat'));
+    if(todosVotosSnap.exists()){
+      const todos = todosVotosSnap.val();
+      const limpiezas = {};
+      Object.keys(todos).forEach(k=>{
+        const matOriginal = k.replace(/_/g,'');
+        if(!matRegex.test(matOriginal)) limpiezas[k] = null; // marcar para borrar
+      });
+      if(Object.keys(limpiezas).length>0){
+        await update(ref(db,'config/votos_mat'), limpiezas);
+        // Recalcular contadores
+        const vSnap = await get(ref(db,'config/votos_mat'));
+        const vLimpio = vSnap.val()||{};
+        let c1=0, c2=0;
+        Object.values(vLimpio).forEach(v=>{ if(v===1)c1++; else if(v===2)c2++; });
+        await update(ref(db,'config/votos'),{it1:c1, it2:c2});
+      }
+    }
+  } catch(e){ console.warn('Limpieza votos:', e); }
 
   // Guardar voto en Firebase — un voto por matrícula (persistente)
   const matKey = matVal.toUpperCase().replace(/[^A-Z0-9]/g,'_');
@@ -642,6 +733,12 @@ window.continuarARegistro = function(){
 
 // ── INIT ───────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
+  // Restaurar sesión coordinador desde cookie (independiente de sesión alumno)
+  if(getCookie(ADMIN_COOKIE)===ADMIN_PW){
+    const adminSec = document.getElementById('adminSection');
+    if(adminSec) adminSec.style.display='block';
+    abrirPanelAdmin();
+  }
   // Ocultar .wrap hasta que el alumno pase el flujo itinerario
   // (a menos que ya tenga sesión activa y el itinerario ya esté decidido)
   const mat = sessionStorage.getItem('v_mat');
@@ -1202,10 +1299,20 @@ window.salir=function(){
 // ══════════════════════════════════════════════
 window.adminLogin=function(){
   if(document.getElementById('adminPw').value===ADMIN_PW){
-    document.getElementById('adminLoginBox').style.display='none';
-    document.getElementById('adminPanel').style.display='block';
-    cargarAdmin();
+    setCookie(ADMIN_COOKIE, ADMIN_PW, 7); // sesión coordinador por 7 días
+    abrirPanelAdmin();
   }else{document.getElementById('adminPwErr').style.display='block';}
+}
+function abrirPanelAdmin(){
+  document.getElementById('adminLoginBox').style.display='none';
+  document.getElementById('adminPanel').style.display='block';
+  cargarAdmin();
+}
+window.cerrarSesionAdmin=function(){
+  deleteCookie(ADMIN_COOKIE);
+  document.getElementById('adminPanel').style.display='none';
+  document.getElementById('adminLoginBox').style.display='block';
+  document.getElementById('adminPw').value='';
 }
 
 async function cargarAdmin(){
@@ -1231,7 +1338,7 @@ async function cargarAdmin(){
     tr.innerHTML=`
       <td>${n}</td>
       <td style="font-weight:600">${v.apP||''} ${v.apM||''}<br><span style="font-size:10px;color:#6B7B8D">${v.nombres||''}</span></td>
-      <td>${v.matricula||''}</td>
+      <td>${v.matricula||''}${tipoMatricula(v.matricula||'')===('docente')?'<br><span style="font-size:9px;background:#1565C0;color:#fff;border-radius:3px;padding:1px 5px">DOCENTE</span>':''}</td>
       <td style="font-size:10px">${v.carrera||''}</td>
       <td>${v.telefono||''}</td>
       <td><span class="badge-fase ${fcls}">${fl}</span></td>
@@ -1665,6 +1772,7 @@ window.recargarAdmin=function(){cargarAdmin();}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="admin-btn btn-doc" onclick="recargarAdmin()">🔄 Actualizar</button>
           <button class="admin-btn btn-conf" onclick="exportarCSV()">⬇️ CSV</button>
+          <button class="admin-btn" style="background:#C8000A;color:#fff" onclick="cerrarSesionAdmin()">🔒 Cerrar sesión coord.</button>
         </div>
       </div>
       <!-- Configuración itinerario -->
