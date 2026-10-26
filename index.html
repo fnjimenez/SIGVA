@@ -443,24 +443,49 @@ body{position:relative}
         <div class="it-votos" id="votosIt4">— votos</div>
       </div>
 
+      <!-- ITINERARIO V -->
+      <div id="cardIt5" class="it-card" onclick="votarItinerario(5)">
+        <div class="it-num">V</div>
+        <div class="it-titulo">Con Quiahuiztlán · Más tiempo en La Mancha</div>
+        <div class="it-desc" style="font-size:11px;color:#1D4ED8;font-weight:600;margin-bottom:6px">Jue 3 noche → Vie 4 → Sáb 5 dic</div>
+        <div class="it-paradas">
+          <div class="it-dia">📅 Jue 3 dic — Salida</div>
+          <div class="it-row"><span class="it-hora">23:00</span><span>Salida SABES San Felipe</span></div>
+          <div class="it-dia">⚛️ Vie 4 dic</div>
+          <div class="it-row"><span class="it-hora">06:00</span><span>Llegada CICOLMA · descansar</span></div>
+          <div class="it-row"><span class="it-hora">08:20</span><span>⚛️ Central Nucleoeléctrica Laguna Verde</span></div>
+          <div class="it-row"><span class="it-hora">13:00</span><span>🗿 Quiahuiztlán (~25 min)</span></div>
+          <div class="it-row"><span class="it-hora">15:00</span><span>🌊 CICOLMA · recorrido y playa</span></div>
+          <div class="it-row"><span class="it-hora">19:00</span><span>🍽️ Cena · descanso</span></div>
+          <div class="it-dia">🌅 Sáb 5 dic</div>
+          <div class="it-row"><span class="it-hora">07:00</span><span>☀️ Mañana libre en La Mancha</span></div>
+          <div class="it-row"><span class="it-hora">09:00</span><span>🌊 Playa La Mancha (todo el día)</span></div>
+          <div class="it-row"><span class="it-hora">13:00</span><span>🍳 Almuerzo en CICOLMA</span></div>
+          <div class="it-row"><span class="it-hora">15:00</span><span>🌊 Más tiempo en playa</span></div>
+          <div class="it-row"><span class="it-hora">17:00</span><span>🚐 Salida directa a San Felipe</span></div>
+          <div class="it-row"><span class="it-hora">~00:30</span><span>🏫 Llegada SABES</span></div>
+        </div>
+        <div class="it-votos" id="votosIt5">— votos</div>
+      </div>
+
     </div>
 
     <div id="it-msg" style="font-family:'IBM Plex Sans',sans-serif;font-size:13px;text-align:center;color:#3D5A6A;min-height:36px;padding:10px;border-radius:8px;background:rgba(10,116,85,.06);display:none"></div>
 
     <!-- Aviso matrícula bloqueada (U20/U22/U23 + itinerario 2) -->
     <div id="avisoBloqueoMat" style="display:none;background:#FFF3F3;border:2px solid #C8000A;border-radius:10px;padding:14px 16px;margin-bottom:12px;font-family:'IBM Plex Sans',sans-serif">
-      <div style="font-size:15px;font-weight:700;color:#C8000A;margin-bottom:6px">⛔ No puedes participar en el Itinerario 2</div>
+      <div style="font-size:15px;font-weight:700;color:#C8000A;margin-bottom:6px">⚠️ Tienes examen EGEL el viernes 4 de diciembre</div>
       <div style="font-size:12px;color:#7D0000;line-height:1.7">
-        Tu matrícula (generación <strong id="genBloqueada"></strong>) corresponde a alumnos que presentarán el <strong>examen EGEL el viernes 4 de diciembre</strong>. El Itinerario 2 sale la noche del jueves 3 y regresa en la <strong>madrugada del domingo 6 (~04:30 AM)</strong>, lo que te impediría presentar tu examen.<br><br>
-        Si aún deseas participar en el viaje, selecciona el <strong>Itinerario 1</strong> (sale miércoles 2, regresa madrugada del sábado 5 a las ~23:00, con tiempo de llegar a tu EGEL del viernes).
+        Tu matrícula (generación <strong id="genBloqueada"></strong>) corresponde a alumnos que presentarán el <strong>examen EGEL el viernes 4 de diciembre</strong>. Todos los itinerarios del viaje salen la noche del jueves 3, lo que significa que llegarás a CICOLMA a las 06:00 del viernes, pocas horas antes de tu examen.<br><br>
+        Considera esto antes de registrarte. Si decides participar, asegúrate de poder presentar tu examen en las condiciones adecuadas.
       </div>
     </div>
 
     <!-- Aviso EGEL itinerario 1 -->
     <div id="avisoEgelIt1" style="display:none;background:#FEF9E7;border:1.5px solid #F5C842;border-radius:10px;padding:14px 16px;margin-bottom:12px;font-family:'IBM Plex Sans',sans-serif">
-      <div style="font-size:13px;font-weight:700;color:#6B4000;margin-bottom:4px">⚠️ Nota sobre el EGEL — Itinerario 1</div>
+      <div style="font-size:13px;font-weight:700;color:#6B4000;margin-bottom:4px">⚠️ Nota sobre el EGEL</div>
       <div style="font-size:12px;color:#6B4000;line-height:1.7">
-        El regreso al plantel será aproximadamente a las <strong>23:00 del viernes 4 de diciembre</strong> (madrugada del sábado). Si presentas el <strong>examen EGEL ese mismo día sábado</strong>, considera que llegarás tarde con poco tiempo de descanso. Valora si puedes participar con ese compromiso.
+        El viaje regresa la <strong>madrugada del domingo 6 de diciembre</strong> (~00:00-00:30). Si presentas el <strong>examen EGEL el viernes 4</strong>, considera que saldrás la noche del jueves y llegarás a CICOLMA al amanecer. Valora si puedes presentar tu examen en esas condiciones.
       </div>
     </div>
 
@@ -605,11 +630,12 @@ window.irAItinerario = function(){
   // Suscripción en tiempo real a votos
   onValue(ref(db,'config/votos'), snap=>{
     const v = snap.val()||{};
-    const t1 = v.it1||0, t2 = v.it2||0, t3 = v.it3||0, t4 = v.it4||0;
+    const t1 = v.it1||0, t2 = v.it2||0, t3 = v.it3||0, t4 = v.it4||0, t5 = v.it5||0;
     document.getElementById('votosIt1').textContent = t1+' voto'+(t1!==1?'s':'');
     document.getElementById('votosIt2').textContent = t2+' voto'+(t2!==1?'s':'');
     document.getElementById('votosIt3').textContent = t3+' voto'+(t3!==1?'s':'');
     document.getElementById('votosIt4').textContent = t4+' voto'+(t4!==1?'s':'');
+    document.getElementById('votosIt5').textContent = t5+' voto'+(t5!==1?'s':'');
   });
 }
 
@@ -759,7 +785,7 @@ window.votarItinerario = async function(n){
     }
     // Cambio de voto — restar al anterior, sumar al nuevo
     const snap = await get(ref(db,'config/votos'));
-    const v = snap.val()||{it1:0,it2:0,it3:0,it4:0};
+    const v = snap.val()||{it1:0,it2:0,it3:0,it4:0,it5:0};
     v['it'+votoAnterior] = Math.max(0,(v['it'+votoAnterior]||1)-1);
     v['it'+n] = (v['it'+n]||0) + 1;
     await update(ref(db,'config/votos'), v);
@@ -779,7 +805,7 @@ window.votarItinerario = async function(n){
   }
   if(!getCookie('v_voto_it')){
     const snap = await get(ref(db,'config/votos'));
-    const v = snap.val()||{it1:0,it2:0,it3:0,it4:0};
+    const v = snap.val()||{it1:0,it2:0,it3:0,it4:0,it5:0};
     v['it'+n] = (v['it'+n]||0) + 1;
     await update(ref(db,'config/votos'), v);
     await update(ref(db,'config/votos_mat'), {[matKey]: n});
@@ -909,7 +935,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('votosIt1').textContent = (v.it1||0)+' voto'+((v.it1||0)!==1?'s':'');
       document.getElementById('votosIt2').textContent = (v.it2||0)+' voto'+((v.it2||0)!==1?'s':'');
       document.getElementById('votosIt3').textContent = (v.it3||0)+' voto'+((v.it3||0)!==1?'s':'');
-      document.getElementById('votosIt4').textContent = (v.it4||0)+' voto'+((v.it4||0)!==1?'s':'')+'';
+      document.getElementById('votosIt4').textContent = (v.it4||0)+' voto'+((v.it4||0)!==1?'s':'');
+      document.getElementById('votosIt5').textContent = (v.it5||0)+' voto'+((v.it5||0)!==1?'s':'');
     });
   }
   // else: el video se muestra por defecto, el wrap está oculto hasta continuarARegistro()
@@ -1514,7 +1541,7 @@ window.guardarConfigAdmin=async function(){
 // ── TAB ITINERARIO (panel alumno) ──────────────────────────────────────────
 function renderTabItinerario(){
   const saved = getCookie('v_voto_it');
-  ['1','2','3','4'].forEach(n=>{
+  ['1','2','3','4','5'].forEach(n=>{
     const c = document.getElementById('panelCardIt'+n);
     if(c) c.classList.toggle('seleccionado', saved===n);
   });
@@ -1531,7 +1558,7 @@ function renderTabItinerario(){
   // Suscripción votos en panel
   onValue(ref(db,'config/votos'), snap=>{
     const v = snap.val()||{};
-    ['1','2','3','4'].forEach(n=>{
+    ['1','2','3','4','5'].forEach(n=>{
       const el = document.getElementById('panelVotosIt'+n);
       const cnt = v['it'+n]||0;
       if(el) el.textContent = cnt+' voto'+(cnt!==1?'s':'');
@@ -1549,7 +1576,7 @@ window.votarDesdePanel = async function(n){
   try{
     const votoMatSnap = await get(ref(db,'config/votos_mat/'+matKey));
     const snap = await get(ref(db,'config/votos'));
-    const v = snap.val()||{it1:0,it2:0,it3:0,it4:0};
+    const v = snap.val()||{it1:0,it2:0,it3:0,it4:0,it5:0};
     if(votoMatSnap.exists()){
       const anterior = votoMatSnap.val();
       if(anterior===n){ msg.textContent='ℹ️ Ya tienes registrado el Itinerario '+n+'.'; return; }
@@ -1589,7 +1616,7 @@ window.cargarStatusItinerarioAdmin=async function(){
   const cfg=snap.val()||{};
   const el=document.getElementById('itAdminStatus');
   const v=cfg.votos||{it1:0,it2:0};
-  let html=`<div style="font-size:12px;color:#3D5A6A;margin-bottom:6px">Votos: Itinerario 1 = <strong>${v.it1||0}</strong> · Itinerario 2 = <strong>${v.it2||0}</strong></div>`;
+  let html=`<div style="font-size:12px;color:#3D5A6A;margin-bottom:6px">Votos: I = <strong>${v.it1||0}</strong> · II = <strong>${v.it2||0}</strong> · III = <strong>${v.it3||0}</strong> · IV = <strong>${v.it4||0}</strong> · V = <strong>${v.it5||0}</strong></div>`;
   if(cfg.itinerarioDecidido){
     html+=`<div style="color:#0A7455;font-weight:700">✅ Itinerario ${cfg.itinerarioElegido} ya definido (${cfg.fechaDecision?.split('T')[0]||''})</div>`;
   } else {
@@ -1605,7 +1632,7 @@ window.cargarStatusItinerarioAdmin=async function(){
     html+=`<tr><th style="background:#1A2332;color:#fff;padding:5px 8px;text-align:left">Matrícula</th><th style="background:#1A2332;color:#fff;padding:5px 8px;text-align:left">Itinerario</th></tr>`;
     votKeys.forEach(mat=>{
       const it=votMat[mat];
-      const color=it===1?'#0A7455':'#1565C0';
+      const colors={1:'#0A7455',2:'#0A7455',3:'#1565C0',4:'#1565C0',5:'#7C3AED'}; const color=colors[it]||'#3D5A6A';
       html+=`<tr><td style="padding:4px 8px;border-bottom:1px solid #EEF2F6">${mat.replace(/_/g,'')}</td><td style="padding:4px 8px;border-bottom:1px solid #EEF2F6;color:${color};font-weight:700">Itinerario ${it}</td></tr>`;
     });
     html+=`</table>`;
@@ -1810,6 +1837,7 @@ window.borrarAlumno = async function(){
     <button class="tab-btn" data-tab="tab-pagos"           onclick="cambiarTab('tab-pagos')">💳 Pagos</button>
     <button class="tab-btn" data-tab="tab-asiento"         onclick="cambiarTab('tab-asiento')">🚐 Mi asiento</button>
     <button class="tab-btn" data-tab="tab-destinos"        onclick="cambiarTab('tab-destinos')">🗺️ Destinos</button>
+    <button class="tab-btn" data-tab="tab-itinerario"      onclick="cambiarTab('tab-itinerario')" id="btnTabItinerario">🗳️ Itinerario</button>
   </div>
 
   <!-- TAB ESTADO -->
@@ -2051,6 +2079,14 @@ window.borrarAlumno = async function(){
           <div class="it-votos" id="panelVotosIt4">— votos</div>
         </div>
 
+        <div id="panelCardIt5" class="it-card" onclick="votarDesdePanel(5)">
+          <div class="it-num">V</div>
+          <div class="it-titulo">Con Quiahuiztlán · Más tiempo en La Mancha</div>
+          <div class="it-desc" style="font-size:11px;color:#7C3AED;font-weight:600;margin-bottom:4px">Jue 3 noche → Vie 4 → Sáb 5 dic</div>
+          <div style="font-size:11px;color:#4A5568;line-height:1.5">Vie: CNLV → Quiahuiztlán → La Mancha · Sáb: todo el día en La Mancha → 17:00 regreso directo</div>
+          <div class="it-votos" id="panelVotosIt5">— votos</div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -2087,8 +2123,11 @@ window.borrarAlumno = async function(){
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <select id="cfgItinerario" style="padding:5px 10px;font-size:13px;border:1.5px solid #0A7455;border-radius:7px;font-family:'IBM Plex Sans',sans-serif">
             <option value="">— Elige itinerario ganador —</option>
-            <option value="1">Itinerario 1 — 3-4 dic (Jue-Vie)</option>
-            <option value="2">Itinerario 2 — 4-5 dic (Vie-Sáb)</option>
+            <option value="1">Itinerario I — Con Quiahuiztlán · Regreso directo</option>
+            <option value="2">Itinerario II — Sin Quiahuiztlán · Regreso directo</option>
+            <option value="3">Itinerario III — Con Quiahuiztlán · Casitas + Tajín</option>
+            <option value="4">Itinerario IV — Sin Quiahuiztlán · Casitas + Tajín</option>
+            <option value="5">Itinerario V — Con Quiahuiztlán · Más tiempo en La Mancha</option>
           </select>
           <button class="admin-btn btn-conf" onclick="decidirItinerario()" style="padding:5px 14px;font-size:12px;background:#0A7455;color:#fff">🔒 Publicar decisión</button>
           <button class="admin-btn" onclick="cargarStatusItinerarioAdmin()" style="padding:5px 10px;font-size:11px">🔄 Refrescar</button>
