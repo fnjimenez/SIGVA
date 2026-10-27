@@ -948,11 +948,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('.js-costo-h').forEach(el=>el.textContent='$'+COSTO_HOSPEDAJE.toLocaleString('es-MX'));
   document.querySelectorAll('.js-costo-tot').forEach(el=>el.textContent='$'+(COSTO_TRANSPORTE+COSTO_HOSPEDAJE).toLocaleString('es-MX'));
 
-  // Contador inscritos
-  onValue(ref(db,'alumnos'), snap=>{
-    const n = Object.keys(snap.val()||{}).length;
+  // Contador inscritos — usa nodo ligero para no cargar todos los datos
+  onValue(ref(db,'config/totalInscritos'), snap=>{
+    const n = snap.val()||0;
     document.querySelectorAll('.js-inscritos').forEach(el=>el.textContent=n);
-  });
+  }, {onlyOnce:false});
 });
 
 // ── ACCESO ─────────────────────────────────────
@@ -977,47 +977,60 @@ window.registrarse = async function(){
   if(!mat){showAccesoErr('regErr','Ingresa tu matrícula');return;}
   if(pw.length<6){showAccesoErr('regErr','La contraseña debe tener al menos 6 caracteres');return;}
   if(pw!==pw2){showAccesoErr('regErr','Las contraseñas no coinciden');return;}
-  setBtn('btnReg',true,'Creando...');
-  const snap = await get(ref(db,'alumnos'));
-  const todos = snap.val()||{};
-  const existeEntry = Object.entries(todos).find(([,v])=>v.matricula===mat);
-  if(existeEntry && existeEntry[1].fase > 0){
-    showAccesoErr('regErr','Esta matrícula ya tiene una cuenta. Usa la opción "Iniciar sesión".');
-    setBtn('btnReg',false,'Crear cuenta →');return;
+  setBtn('btnReg',true,'⏳ Creando...');
+  try {
+    const snap = await get(ref(db,'alumnos'));
+    const todos = snap.val()||{};
+    const existeEntry = Object.entries(todos).find(([,v])=>v.matricula===mat);
+    if(existeEntry && existeEntry[1].fase > 0){
+      showAccesoErr('regErr','Esta matrícula ya tiene una cuenta. Usa la opción "Iniciar sesión".');
+      setBtn('btnReg',false,'Crear cuenta →');return;
+    }
+    const hash = await sha256(pw);
+    let nuevoKey, nuevoData;
+    if(existeEntry && existeEntry[1].fase===0){
+      nuevoKey = existeEntry[0];
+      nuevoData = {...existeEntry[1], pwHash:hash, fase:1, fechaRegistro:new Date().toISOString()};
+      await update(ref(db,'alumnos/'+nuevoKey), {pwHash:hash, fase:1, fechaRegistro:new Date().toISOString()});
+    } else {
+      const nuevo = await push(ref(db,'alumnos'),{matricula:mat, pwHash:hash, fase:1, fechaRegistro:new Date().toISOString()});
+      nuevoKey = nuevo.key;
+      nuevoData = {matricula:mat, pwHash:hash, fase:1};
+      // Incrementar contador ligero de inscritos
+      const cntSnap = await get(ref(db,'config/totalInscritos'));
+      await update(ref(db,'config'), {totalInscritos: (cntSnap.val()||0)+1});
+    }
+    alumnoKey  = nuevoKey;
+    alumnoData = nuevoData;
+    setCookie('v_mat', mat, 30);
+    setCookie('v_pw', hash, 30);
+    mostrarPanel();
+  } catch(e) {
+    console.error('Error al crear cuenta:', e);
+    showAccesoErr('regErr','Error de conexión. Verifica tu internet e intenta de nuevo. ('+e.message+')');
   }
-  const hash = await sha256(pw);
-  let nuevoKey, nuevoData;
-  if(existeEntry && existeEntry[1].fase===0){
-    // Actualizar registro fase 0 existente
-    nuevoKey = existeEntry[0];
-    nuevoData = {...existeEntry[1], pwHash:hash, fase:1, fechaRegistro:new Date().toISOString()};
-    await update(ref(db,'alumnos/'+nuevoKey), {pwHash:hash, fase:1, fechaRegistro:new Date().toISOString()});
-  } else {
-    const nuevo = await push(ref(db,'alumnos'),{matricula:mat, pwHash:hash, fase:1, fechaRegistro:new Date().toISOString()});
-    nuevoKey = nuevo.key;
-    nuevoData = {matricula:mat, pwHash:hash, fase:1};
-  }
-  alumnoKey  = nuevoKey;
-  alumnoData = nuevoData;
-  setCookie('v_mat', mat, 30);
-  setCookie('v_pw', hash, 30);
-  mostrarPanel();
   setBtn('btnReg',false,'Crear cuenta →');
 }
 
 async function autenticar(mat, pwOrHash, esHash){
-  const snap = await get(ref(db,'alumnos'));
-  const todos = snap.val()||{};
-  let key=null, data=null;
-  for(const [k,v] of Object.entries(todos)){if(v.matricula===mat){key=k;data=v;break;}}
-  if(!data){showAccesoErr('loginErr','Matrícula no encontrada. ¿Ya tienes cuenta?');return;}
-  const hash = esHash ? pwOrHash : await sha256(pwOrHash);
-  if(data.pwHash !== hash){showAccesoErr('loginErr','Contraseña incorrecta');return;}
-  alumnoKey  = key;
-  alumnoData = data;
-  setCookie('v_mat', mat, 30);
-  setCookie('v_pw', hash, 30);
-  mostrarPanel();
+  try {
+    const snap = await get(ref(db,'alumnos'));
+    const todos = snap.val()||{};
+    let key=null, data=null;
+    for(const [k,v] of Object.entries(todos)){if(v.matricula===mat){key=k;data=v;break;}}
+    if(!data){showAccesoErr('loginErr','Matrícula no encontrada. ¿Ya tienes cuenta?');return;}
+    const hash = esHash ? pwOrHash : await sha256(pwOrHash);
+    if(data.pwHash !== hash){showAccesoErr('loginErr','Contraseña incorrecta');return;}
+    alumnoKey  = key;
+    alumnoData = data;
+    setCookie('v_mat', mat, 30);
+    setCookie('v_pw', hash, 30);
+    mostrarPanel();
+  } catch(e) {
+    console.error('Error al iniciar sesión:', e);
+    showAccesoErr('loginErr','Error de conexión. Verifica tu internet e intenta de nuevo.');
+  }
+  setBtn('btnLogin',false,'Entrar →');
 }
 
 function showAccesoErr(id,msg){
@@ -1488,6 +1501,7 @@ window.cerrarSesionAdmin=function(){
 }
 
 async function cargarAdmin(){
+  try{
   const cfgSnap=await get(ref(db,'config'));
   const mm=(cfgSnap.val()?.montoMinimo)||montoMinimo;
   document.getElementById('cfgMontoMin').value=mm;
@@ -1527,6 +1541,12 @@ async function cargarAdmin(){
     tbody.appendChild(tr);
   }
   document.getElementById('adminConteo').textContent=n+' alumno(s) registrados';
+  // Sincronizar contador ligero
+  await update(ref(db,'config'), {totalInscritos: n});
+  } catch(e){
+    console.error('Error cargando admin:', e);
+    document.getElementById('adminConteo').textContent='Error de conexión — recarga la página';
+  }
 }
 
 window.guardarConfigAdmin=async function(){
