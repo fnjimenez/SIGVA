@@ -970,6 +970,9 @@ window.acceder = async function(){
   setBtn('btnLogin',false,'Entrar →');
 }
 
+// Convierte matrícula a clave Firebase-safe (reemplaza puntos y caracteres inválidos)
+function matToKey(mat){ return mat.replace(/[.#$\[\]]/g,'_'); }
+
 window.registrarse = async function(){
   const mat  = document.getElementById('regMat').value.trim().toUpperCase();
   const pw   = document.getElementById('regPw').value;
@@ -979,31 +982,36 @@ window.registrarse = async function(){
   if(pw!==pw2){showAccesoErr('regErr','Las contraseñas no coinciden');return;}
   setBtn('btnReg',true,'⏳ Creando...');
   try {
-    const snap = await get(ref(db,'alumnos'));
-    const todos = snap.val()||{};
-    const existeEntry = Object.entries(todos).find(([,v])=>v.matricula===mat);
-    if(existeEntry && existeEntry[1].fase > 0){
+    const matKey = matToKey(mat);
+    // Leer solo el nodo ligero de credenciales
+    const credSnap = await get(ref(db,'creds/'+matKey));
+    if(credSnap.exists() && credSnap.val().fase > 0){
       showAccesoErr('regErr','Esta matrícula ya tiene una cuenta. Usa la opción "Iniciar sesión".');
       setBtn('btnReg',false,'Crear cuenta →');return;
     }
     const hash = await sha256(pw);
-    let nuevoKey, nuevoData;
-    if(existeEntry && existeEntry[1].fase===0){
-      nuevoKey = existeEntry[0];
-      nuevoData = {...existeEntry[1], pwHash:hash, fase:1, fechaRegistro:new Date().toISOString()};
+    let nuevoKey;
+    if(credSnap.exists()){
+      // Tenía fase 0 — actualizar
+      nuevoKey = credSnap.val().alumnoKey;
+      await update(ref(db,'creds/'+matKey), {pwHash:hash, fase:1});
       await update(ref(db,'alumnos/'+nuevoKey), {pwHash:hash, fase:1, fechaRegistro:new Date().toISOString()});
     } else {
+      // Nuevo registro
       const nuevo = await push(ref(db,'alumnos'),{matricula:mat, pwHash:hash, fase:1, fechaRegistro:new Date().toISOString()});
       nuevoKey = nuevo.key;
-      nuevoData = {matricula:mat, pwHash:hash, fase:1};
-      // Incrementar contador ligero de inscritos
+      // Guardar cred ligera
+      await update(ref(db,'creds/'+matKey), {pwHash:hash, fase:1, alumnoKey:nuevoKey});
+      // Incrementar contador
       const cntSnap = await get(ref(db,'config/totalInscritos'));
       await update(ref(db,'config'), {totalInscritos: (cntSnap.val()||0)+1});
     }
     alumnoKey  = nuevoKey;
-    alumnoData = nuevoData;
+    alumnoData = {matricula:mat, pwHash:hash, fase:1};
     setCookie('v_mat', mat, 30);
     setCookie('v_pw', hash, 30);
+    // Cargar datos completos del alumno en segundo plano
+    get(ref(db,'alumnos/'+nuevoKey)).then(s=>{ if(s.exists()) alumnoData=s.val(); });
     mostrarPanel();
   } catch(e) {
     console.error('Error al crear cuenta:', e);
@@ -1014,18 +1022,23 @@ window.registrarse = async function(){
 
 async function autenticar(mat, pwOrHash, esHash){
   try {
-    const snap = await get(ref(db,'alumnos'));
-    const todos = snap.val()||{};
-    let key=null, data=null;
-    for(const [k,v] of Object.entries(todos)){if(v.matricula===mat){key=k;data=v;break;}}
-    if(!data){showAccesoErr('loginErr','Matrícula no encontrada. ¿Ya tienes cuenta?');return;}
-    const hash = esHash ? pwOrHash : await sha256(pwOrHash);
-    if(data.pwHash !== hash){showAccesoErr('loginErr','Contraseña incorrecta');return;}
-    alumnoKey  = key;
-    alumnoData = data;
-    setCookie('v_mat', mat, 30);
-    setCookie('v_pw', hash, 30);
-    mostrarPanel();
+    const matKey = matToKey(mat);
+    // Primero intentar con nodo ligero /creds
+    const credSnap = await get(ref(db,'creds/'+matKey));
+    if(credSnap.exists()){
+      const cred = credSnap.val();
+      const hash = esHash ? pwOrHash : await sha256(pwOrHash);
+      if(cred.pwHash !== hash){showAccesoErr('loginErr','Contraseña incorrecta');return;}
+      alumnoKey = cred.alumnoKey;
+      alumnoData = {matricula:mat, pwHash:hash, fase:cred.fase||1};
+      setCookie('v_mat', mat, 30);
+      setCookie('v_pw', hash, 30);
+      // Cargar datos completos en segundo plano
+      get(ref(db,'alumnos/'+alumnoKey)).then(s=>{ if(s.exists()) { alumnoData=s.val(); } });
+      mostrarPanel();
+    } else {
+      showAccesoErr('loginErr','Matrícula no encontrada. ¿Ya tienes cuenta?');
+    }
   } catch(e) {
     console.error('Error al iniciar sesión:', e);
     showAccesoErr('loginErr','Error de conexión. Verifica tu internet e intenta de nuevo.');
@@ -1549,6 +1562,27 @@ async function cargarAdmin(){
   }
 }
 
+// Migrar alumnos existentes al índice ligero /creds
+window.migrarCreds = async function(){
+  if(!confirm('¿Crear índice /creds para todos los alumnos existentes? (Operación única, no borra datos)')) return;
+  try {
+    const snap = await get(ref(db,'alumnos'));
+    const todos = snap.val()||{};
+    const entries = Object.entries(todos);
+    if(entries.length===0){alert('No hay alumnos registrados.');return;}
+    let ok=0, skip=0;
+    for(const [key, v] of entries){
+      if(!v.matricula||!v.pwHash) { skip++; continue; }
+      const matKey = v.matricula.replace(/[.#$\[\]]/g,'_');
+      await update(ref(db,'creds/'+matKey), {pwHash:v.pwHash, fase:v.fase||1, alumnoKey:key});
+      ok++;
+    }
+    alert(`✅ Migración completa: ${ok} alumnos indexados, ${skip} omitidos (sin matrícula/hash).`);
+  } catch(e) {
+    alert('❌ Error en migración: '+e.message);
+  }
+}
+
 window.guardarConfigAdmin=async function(){
   const mm=+document.getElementById('cfgMontoMin').value;
   if(!mm||mm<1){alert('Monto inválido');return;}
@@ -1747,6 +1781,12 @@ window.guardarEdicionAlumno = async function(){
   const asiento = document.getElementById('ed_asiento').value.trim();
   if(asiento) datos.asiento = +asiento;
   await update(ref(db,'alumnos/'+_editKey), datos);
+  // Mantener /creds sincronizado con la fase actualizada
+  const matKey = datos.matricula.replace(/[.#$\[\]]/g,'_');
+  const credSnap = await get(ref(db,'creds/'+matKey));
+  if(credSnap.exists()){
+    await update(ref(db,'creds/'+matKey), {fase: datos.fase, alumnoKey: _editKey});
+  }
   const msg = document.getElementById('ed_msg');
   msg.style.display='block'; msg.style.background='#D1FAE5'; msg.style.color='#065F46';
   msg.textContent='✅ Cambios guardados correctamente';
@@ -1756,7 +1796,14 @@ window.guardarEdicionAlumno = async function(){
 window.borrarAlumno = async function(){
   if(!_editKey) return;
   if(!confirm('¿Borrar este registro permanentemente? Esta acción no se puede deshacer.')) return;
+  // Obtener matrícula antes de borrar para limpiar /creds
+  const aSnap = await get(ref(db,'alumnos/'+_editKey));
+  const aData = aSnap.val();
   await remove(ref(db,'alumnos/'+_editKey));
+  if(aData?.matricula){
+    const matKey = aData.matricula.replace(/[.#$\[\]]/g,'_');
+    await remove(ref(db,'creds/'+matKey));
+  }
   window.cerrarModalEditar();
   cargarAdmin();
 }
@@ -2133,6 +2180,7 @@ window.borrarAlumno = async function(){
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="admin-btn btn-doc" onclick="recargarAdmin()">🔄 Actualizar</button>
           <button class="admin-btn btn-conf" onclick="exportarCSV()">⬇️ CSV</button>
+          <button class="admin-btn" style="background:#7C3AED;color:#fff" onclick="migrarCreds()" title="Crea índice /creds para login rápido">⚡ Migrar /creds</button>
           <button class="admin-btn" style="background:#C8000A;color:#fff" onclick="cerrarSesionAdmin()">🔒 Cerrar sesión coord.</button>
         </div>
       </div>
