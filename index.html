@@ -24,6 +24,17 @@ body{font-family:'IBM Plex Sans',sans-serif;background:#EEF2F7;color:#1A2332;min
 .btn-start{margin-top:1.75rem;background:#0A7455;color:#fff;border:none;border-radius:14px;padding:15px 48px;font-size:16px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;box-shadow:0 4px 24px rgba(10,116,85,.5);letter-spacing:.02em;transition:background .15s}
 .btn-start:hover{background:#085E45}
 .vid-sub{color:rgba(255,255,255,.35);font-size:11px;margin-top:10px}
+.countdown-wrap{display:flex;gap:10px;justify-content:center;margin-top:1.2rem;flex-wrap:wrap}
+.cd-unit{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 14px;text-align:center;min-width:60px;backdrop-filter:blur(6px)}
+.cd-num{font-size:26px;font-weight:800;color:#fff;line-height:1;font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums}
+.cd-lbl{font-size:9px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-top:3px}
+.cd-title{color:rgba(255,255,255,.55);font-size:11px;text-align:center;margin-bottom:6px;letter-spacing:.04em}
+/* Cuenta regresiva en panel alumno */
+.cd-panel-wrap{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:12px 0 4px}
+.cd-panel-unit{background:#EAF4F0;border:1.5px solid #B2D8CC;border-radius:10px;padding:8px 12px;text-align:center;min-width:52px}
+.cd-panel-num{font-size:22px;font-weight:800;color:#0A7455;line-height:1;font-variant-numeric:tabular-nums}
+.cd-panel-lbl{font-size:9px;color:#4A7A6A;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.cd-panel-title{font-size:12px;color:#4A7A6A;text-align:center;margin-bottom:4px;font-weight:600}
 
 /* ── LAYOUT ── */
 .wrap{max-width:min(900px,100%);margin:0 auto;padding:1.5rem clamp(10px,3vw,24px) 6rem}
@@ -308,6 +319,16 @@ body{position:relative}
       <button onclick="irASesionAdmin()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">🔐 Coordinador</button>
     </div>
   </div>
+  <!-- Cuenta regresiva bienvenida -->
+  <div style="margin-top:1.2rem">
+    <div class="cd-title">🕙 Punto de reunión — Jue 4 dic, 11:00 PM</div>
+    <div class="countdown-wrap" id="cdBienvenida">
+      <div class="cd-unit"><div class="cd-num" id="cd0d">--</div><div class="cd-lbl">días</div></div>
+      <div class="cd-unit"><div class="cd-num" id="cd0h">--</div><div class="cd-lbl">horas</div></div>
+      <div class="cd-unit"><div class="cd-num" id="cd0m">--</div><div class="cd-lbl">min</div></div>
+      <div class="cd-unit"><div class="cd-num" id="cd0s">--</div><div class="cd-lbl">seg</div></div>
+    </div>
+  </div>
   <p class="vid-sub" style="margin-top:10px">Papantla · El Tajín · CICOLMA · Costa Esmeralda · Laguna Verde · Quiahuiztlán</p>
 </div>
 <script>
@@ -551,6 +572,31 @@ const ADMIN_PW         = "sabes2026admin"; // cambia en admin panel también
 const ADMIN_COOKIE     = "sigva_coord_session";
 
 // ── Cookie helpers ──────────────────────────────
+// ── CUENTA REGRESIVA ──────────────────────────────────────
+const FECHA_SALIDA = new Date('2026-12-04T05:00:00Z'); // Jue 4 dic 23:00 CST = 05:00 UTC del día siguiente (Vie 4 dic UTC)
+// Nota: 3 dic 23:00 México (CST = UTC-6) → 4 dic 05:00 UTC
+function tickCountdown(){
+  const ahora = Date.now();
+  const diff = FECHA_SALIDA - ahora;
+  if(diff <= 0){
+    ['cd0d','cd0h','cd0m','cd0s','cd1d','cd1h','cd1m','cd1s'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='00';});
+    return;
+  }
+  const d = Math.floor(diff/86400000);
+  const h = Math.floor((diff%86400000)/3600000);
+  const m = Math.floor((diff%3600000)/60000);
+  const s = Math.floor((diff%60000)/1000);
+  const fmt = n => String(n).padStart(2,'0');
+  [['cd0d','cd1d',d],['cd0h','cd1h',h],['cd0m','cd1m',m],['cd0s','cd1s',s]].forEach(([id0,id1,val])=>{
+    const v=fmt(val);
+    const e0=document.getElementById(id0); if(e0)e0.textContent=v;
+    const e1=document.getElementById(id1); if(e1)e1.textContent=v;
+  });
+}
+tickCountdown();
+setInterval(tickCountdown, 1000);
+// ─────────────────────────────────────────────────────────
+
 function setCookie(name, value, days){
   const d = new Date();
   d.setTime(d.getTime() + days*24*60*60*1000);
@@ -573,14 +619,29 @@ function tipoMatricula(mat){
   return 'otro';
 }
 
+// LAYOUT Sprinter 20 asientos — Grupo Terrestre
+// Renderizado como vista superior: FRENTE (conductor) arriba, FONDO abajo
+// Cada fila del array = fila horizontal del bus (izquierda → derecha)
+// null = espacio vacío (pasillo o posición inexistente)
+//
+// Distribución real (imagen Grupo Terrestre):
+//   Izq (ventana)  Interior-izq  |pasillo|  Interior-der  Der (ventana)
+//   17             14             11  8    5             2
+//   18             15             12  9    6             3
+//   19             —              13  10   7             4
+//   20             16             —   —    —             —
+//   —              —              —   —    —       1 (copiloto)
+//
+// En el portal renderizamos de FRENTE → FONDO (conductor arriba):
 const LAYOUT = [
-  { asientos:[1],          nota:"Copiloto / puerta delantera" },
-  { asientos:[2,3,4],      nota:"Fila 1 — frente a TV" },
-  { asientos:[5,6,7],      nota:"" },
-  { asientos:[8,9,10],     nota:"" },
-  { asientos:[11,12,13],   nota:"" },
-  { asientos:[14,15,16],   nota:"" },
-  { asientos:[17,18,19,20],nota:"Fila trasera" },
+  // Fila frente: solo copiloto (derecha)
+  { asientos:[null,null,null,null,null,1],  nota:"🚐 Frente — Copiloto" },
+  // Filas centrales: 2 columnas izq + pasillo (null) + 2 columnas der
+  { asientos:[17, 14, null, 11,  8,  5,  2],  nota:"" },
+  { asientos:[18, 15, null, 12,  9,  6,  3],  nota:"📺 TV" },
+  { asientos:[19,null, null, 13, 10,  7,  4],  nota:"" },
+  // Fila trasera: 2 izq + pasillo + vacíos
+  { asientos:[20, 16, null,null,null,null,null], nota:"🪟 Fila trasera izq" },
 ];
 
 // ── ESTADO ─────────────────────────────────────
@@ -1333,7 +1394,8 @@ function renderPagos(){
   const total = COSTO_TRANSPORTE + COSTO_HOSPEDAJE;
   const pct = Math.min(100,Math.round(abonado/total*100));
   const minPct = Math.min(100,Math.round(montoMinimo/total*100));
-  const puedeAsiento = abonado >= montoMinimo;
+  const fase = alumnoData.fase||1;
+  const puedeAsiento = fase >= 3 && abonado >= montoMinimo;
 
   document.getElementById('pagosBody').innerHTML = `
     <div id="errorFase3" class="error-panel"></div>
@@ -1346,7 +1408,7 @@ function renderPagos(){
       <div class="pago-bar"><div class="pago-bar-fill" style="width:${pct}%"></div></div>
       <div class="pago-bar-min">📍 Mínimo para asiento: <strong>$${montoMinimo.toLocaleString('es-MX')}</strong> (${minPct}%)</div>
       ${revision>0?`<div style="font-size:11px;color:#8A5A00;margin-top:3px">⏳ En revisión: $${revision.toLocaleString('es-MX')} — pendiente de confirmación por coordinadores</div>`:''}
-      <div class="pago-status ${puedeAsiento?'ok':'pend'}">${puedeAsiento?'✅ Anticipo mínimo cubierto — puedes seleccionar asiento':'⚠️ Necesitas al menos $'+montoMinimo.toLocaleString('es-MX')+' confirmados para apartar asiento'}</div>
+      <div class="pago-status ${puedeAsiento?'ok':'pend'}">${puedeAsiento?'✅ Listo — puedes seleccionar tu asiento':fase<3?'📋 Falta confirmación de documentos (fase 3) y anticipo de $'+montoMinimo.toLocaleString('es-MX'):'⚠️ Anticipa al menos $'+montoMinimo.toLocaleString('es-MX')+' para apartar asiento'}</div>
     </div>
 
     <div class="deposito-card">
@@ -1418,54 +1480,121 @@ window.registrarPago = async function(){
 function renderMapa(){
   const cont = document.getElementById('mapaAsientos');
   if(!cont) return;
-  const fase = alumnoData.fase||1;
   const pagos = alumnoData.pagos||{};
   const abonado = Object.values(pagos).filter(p=>p.estado==='confirmado').reduce((s,p)=>s+(+p.monto||0),0);
-  const puedeAsiento = abonado >= montoMinimo;
+  const faseActual = alumnoData.fase||1;
+  const puedeAsiento = faseActual >= 3 && abonado >= montoMinimo;
 
   if(!puedeAsiento){
+    const faltaDocs = faseActual < 3;
+    const faltaPago = abonado < montoMinimo;
+    let msg = '';
+    if(faltaDocs && faltaPago) msg = 'Necesitas entregar tus documentos y registrar tu anticipo de <strong>$'+montoMinimo.toLocaleString('es-MX')+'</strong>.';
+    else if(faltaDocs) msg = 'Necesitas que el coordinador confirme tu documentación (fase 3).';
+    else msg = 'Necesitas al menos <strong>$'+montoMinimo.toLocaleString('es-MX')+'</strong> confirmados.<br>Ve a <em>Pagos</em> y registra tu anticipo.';
     cont.innerHTML=`<div style="text-align:center;padding:1.5rem;font-size:13px;color:#6B7B8D">
       <div style="font-size:32px;margin-bottom:8px">🔒</div>
       <div style="font-weight:700;margin-bottom:4px">Selección bloqueada</div>
-      Necesitas al menos <strong>$${montoMinimo.toLocaleString('es-MX')}</strong> confirmados.<br>
-      Ve a <em>Pagos</em> y registra tu anticipo.</div>`;
+      ${msg}</div>`;
     return;
   }
 
-  get(ref(db,'alumnos')).then(snap=>{
-    const todos = snap.val()||{};
-    const tomados = {};
-    for(const [k,v] of Object.entries(todos)){
-      if(v.asiento && k!==alumnoKey) tomados[v.asiento]=v.nombres?.split(' ')[0]||'Ocupado';
-    }
+  cont.innerHTML='<div style="text-align:center;color:#9AABB8;font-size:12px;padding:1rem">⏳ Cargando mapa...</div>';
+
+  // Usar nodo ligero /asientos en lugar de /alumnos completo
+  get(ref(db,'config/asientos')).then(snap=>{
+    const tomados = snap.val()||{}; // { "5": "Nombre", "8": "Ana" }
     cont.innerHTML='';
+
+    // Encabezado de orientación
+    const hdr = document.createElement('div');
+    hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:4px;font-size:9px;color:#9AABB8;font-weight:600;padding:0 2px';
+    hdr.innerHTML='<span>⬅ FONDO</span><span>🚐 FRENTE / CONDUCTOR ➡</span>';
+    cont.appendChild(hdr);
+
+    // Leyenda
+    const ley = document.createElement('div');
+    ley.style.cssText='display:flex;gap:12px;justify-content:center;margin-bottom:10px;flex-wrap:wrap';
+    ley.innerHTML=`
+      <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#fff;border:2px solid #D2DCE8"></span> Libre</span>
+      <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#0A7455"></span> Tu asiento</span>
+      <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#FDEAEA;border:2px solid #E0A0A0"></span> Ocupado</span>
+    `;
+    cont.appendChild(ley);
+
+    // Dibujar filas
     LAYOUT.forEach(fila=>{
-      if(fila.nota){const n=document.createElement('div');n.className='s-nota';n.textContent=fila.nota;cont.appendChild(n);}
-      const fd=document.createElement('div');fd.className='s-fila';
-      fila.asientos.forEach(n=>{
-        const btn=document.createElement('button');btn.className='asiento';btn.textContent=n;
-        const esPropio=alumnoData.asiento===n;
-        const tomado=tomados[n];
-        if(esPropio){btn.classList.add('a-propio');btn.title='Tu asiento';}
-        else if(tomado){btn.classList.add('a-tomado');btn.disabled=true;btn.title='Ocupado';}
-        else{btn.classList.add('a-libre');btn.onclick=()=>seleccionarAsiento(n);}
-        fd.appendChild(btn);
+      if(fila.nota && fila.nota.trim()){
+        const nd=document.createElement('div');
+        nd.className='s-nota';
+        nd.textContent=fila.nota;
+        cont.appendChild(nd);
+      }
+      const fd=document.createElement('div');
+      fd.className='s-fila';
+      fd.style.justifyContent='center';
+
+      fila.asientos.forEach((n, ci)=>{
+        // Pasillo visual en el índice 2 de cada fila
+        if(ci === 2){
+          const gap = document.createElement('div');
+          gap.style.cssText='width:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#C5D0DB;font-size:8px';
+          gap.textContent='|';
+          fd.appendChild(gap);
+        }
+        if(n === null){
+          // Celda vacía
+          const empty = document.createElement('div');
+          empty.style.cssText='width:46px;height:42px;flex-shrink:0';
+          fd.appendChild(empty);
+        } else {
+          const btn=document.createElement('button');
+          btn.className='asiento';
+          btn.textContent=n;
+          const esPropio=alumnoData.asiento===n;
+          const tomadoPor=tomados[String(n)];
+          if(esPropio){
+            btn.classList.add('a-propio');
+            btn.title='✅ Tu asiento #'+n;
+          } else if(tomadoPor){
+            btn.classList.add('a-tomado');
+            btn.disabled=true;
+            btn.title='Ocupado';
+            btn.style.cssText='font-size:10px;line-height:1.1';
+            btn.innerHTML=`<span style="display:block;font-size:11px;font-weight:700">${n}</span><span style="display:block;font-size:8px;opacity:.7">${tomadoPor.substring(0,5)}</span>`;
+          } else {
+            btn.classList.add('a-libre');
+            btn.onclick=()=>seleccionarAsiento(n);
+          }
+          fd.appendChild(btn);
+        }
       });
       cont.appendChild(fd);
     });
+  }).catch(e=>{
+    cont.innerHTML='<div style="text-align:center;color:#B01010;padding:1rem;font-size:13px">Error al cargar mapa: '+e.message+'</div>';
   });
 }
 
 window.seleccionarAsiento = async function(n){
   if(!confirm('¿Confirmas el asiento #'+n+'?\n\nUna vez seleccionado, solo los coordinadores pueden cambiarlo.')) return;
   try{
-    await update(ref(db,'alumnos/'+alumnoKey),{asiento:n,fase:Math.max(alumnoData.fase||1,4),fechaAsiento:new Date().toISOString()});
-    alumnoData.asiento=n;alumnoData.fase=Math.max(alumnoData.fase||1,4);
+    const nombre = alumnoData.nombres?.split(' ')[0] || alumnoData.apP || 'Alumno';
+    // Liberar asiento anterior si tenía uno
+    if(alumnoData.asiento && alumnoData.asiento !== n){
+      await update(ref(db,'config/asientos'), {[String(alumnoData.asiento)]: null});
+    }
+    // Guardar en alumno y en índice ligero
+    await Promise.all([
+      update(ref(db,'alumnos/'+alumnoKey), {asiento:n, fase:Math.max(alumnoData.fase||1,4), fechaAsiento:new Date().toISOString()}),
+      update(ref(db,'config/asientos'), {[String(n)]: nombre}),
+    ]);
+    alumnoData.asiento=n; alumnoData.fase=Math.max(alumnoData.fase||1,4);
     renderProgreso(alumnoData.fase);
     renderMapa();
     document.getElementById('asientoElegido').textContent='#'+n;
     document.getElementById('confirmAsientoMsg').style.display='block';
-  }catch(e){alert('Error: '+e.message);}
+  }catch(e){alert('Error al guardar asiento: '+e.message);}
 }
 
 // ── RENDERIZADO PROGRESO ──────────────────────
@@ -1580,6 +1709,25 @@ window.migrarCreds = async function(){
     alert(`✅ Migración completa: ${ok} alumnos indexados, ${skip} omitidos (sin matrícula/hash).`);
   } catch(e) {
     alert('❌ Error en migración: '+e.message);
+  }
+}
+
+// Migrar asientos existentes al índice ligero /config/asientos
+window.migrarAsientos = async function(){
+  if(!confirm('¿Sincronizar /config/asientos desde los datos de alumnos?')) return;
+  try {
+    const snap = await get(ref(db,'alumnos'));
+    const todos = snap.val()||{};
+    const asientosMap = {};
+    for(const [, v] of Object.entries(todos)){
+      if(v.asiento && v.nombres){
+        asientosMap[String(v.asiento)] = v.nombres.split(' ')[0];
+      }
+    }
+    await update(ref(db,'config/asientos'), asientosMap);
+    alert(`✅ Asientos sincronizados: ${Object.keys(asientosMap).length} asientos indexados.`);
+  } catch(e) {
+    alert('❌ Error: '+e.message);
   }
 }
 
@@ -1897,6 +2045,17 @@ window.borrarAlumno = async function(){
 <!-- ══════ PANEL ALUMNO ══════ -->
 <div id="panelAlumno" style="display:none">
 
+  <!-- Cuenta regresiva panel -->
+  <div style="text-align:center;margin-bottom:12px">
+    <div class="cd-panel-title">🕙 Salida — Jue 4 dic, 11:00 PM · Universidad SABES San Felipe</div>
+    <div class="cd-panel-wrap" id="cdPanel">
+      <div class="cd-panel-unit"><div class="cd-panel-num" id="cd1d">--</div><div class="cd-panel-lbl">días</div></div>
+      <div class="cd-panel-unit"><div class="cd-panel-num" id="cd1h">--</div><div class="cd-panel-lbl">horas</div></div>
+      <div class="cd-panel-unit"><div class="cd-panel-num" id="cd1m">--</div><div class="cd-panel-lbl">min</div></div>
+      <div class="cd-panel-unit"><div class="cd-panel-num" id="cd1s">--</div><div class="cd-panel-lbl">seg</div></div>
+    </div>
+  </div>
+
   <div class="panel-tabs">
     <button class="tab-btn activo" data-tab="tab-estado"   onclick="cambiarTab('tab-estado')">📊 Estado</button>
     <button class="tab-btn" data-tab="tab-datos"           onclick="cambiarTab('tab-datos')">👤 Mis datos</button>
@@ -2181,6 +2340,7 @@ window.borrarAlumno = async function(){
           <button class="admin-btn btn-doc" onclick="recargarAdmin()">🔄 Actualizar</button>
           <button class="admin-btn btn-conf" onclick="exportarCSV()">⬇️ CSV</button>
           <button class="admin-btn" style="background:#7C3AED;color:#fff" onclick="migrarCreds()" title="Crea índice /creds para login rápido">⚡ Migrar /creds</button>
+          <button class="admin-btn" style="background:#1565C0;color:#fff" onclick="migrarAsientos()" title="Sincroniza /config/asientos desde /alumnos">🚐 Migrar asientos</button>
           <button class="admin-btn" style="background:#C8000A;color:#fff" onclick="cerrarSesionAdmin()">🔒 Cerrar sesión coord.</button>
         </div>
       </div>
