@@ -1394,7 +1394,6 @@ function renderPagos(){
   const total = COSTO_TRANSPORTE + COSTO_HOSPEDAJE;
   const pct = Math.min(100,Math.round(abonado/total*100));
   const minPct = Math.min(100,Math.round(montoMinimo/total*100));
-  const fase = alumnoData.fase||1;
   const puedeAsiento = fase >= 3 && abonado >= montoMinimo;
 
   document.getElementById('pagosBody').innerHTML = `
