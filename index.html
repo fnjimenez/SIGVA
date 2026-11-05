@@ -1729,6 +1729,9 @@ async function cargarAdmin(){
           <button class="admin-btn btn-conf" onclick="confirmarPago('${key}','${pk}')">✅ $${(+p.monto).toLocaleString('es-MX')}</button>
           <button class="admin-btn btn-rech" onclick="rechazarPago('${key}','${pk}')">❌</button>
         `).join('')}
+        ${Object.entries(pagos).filter(([,p])=>p.estado==='confirmado').map(([pk,p])=>`
+          <button class="admin-btn" style="background:#FEF3DC;color:#6B4000;font-size:10px" onclick="anularPago('${key}','${pk}')" title="Anular pago confirmado">↩️ $${(+p.monto).toLocaleString('es-MX')}</button>
+        `).join('')}
         <button class="admin-btn" style="background:#E8F0FB;color:#1565C0" onclick="abrirEditarAlumno('${key}')">✏️ Editar</button>
       </td>`;
     tbody.appendChild(tr);
@@ -1955,6 +1958,14 @@ window.confirmarPago=async function(aKey,pKey){
   const abonado=Object.values(d.pagos||{}).filter(p=>p.estado==='confirmado').reduce((s,p)=>s+(+p.monto||0),0);
   if(abonado>=montoMinimo && (d.fase||1)<4) await update(ref(db,'alumnos/'+aKey),{fase:4});
   cargarAdmin();
+}
+
+window.anularPago=async function(aKey,pKey){
+  if(!confirm('¿Anular este pago confirmado y regresarlo a "en revisión"?')) return;
+  try{
+    await update(ref(db,'alumnos/'+aKey+'/pagos/'+pKey),{estado:'revision'});
+    cargarAdmin();
+  }catch(e){alert('Error: '+e.message);}
 }
 
 window.rechazarPago=async function(aKey,pKey){
