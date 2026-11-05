@@ -321,7 +321,7 @@ body{position:relative}
   </div>
   <!-- Cuenta regresiva bienvenida -->
   <div style="margin-top:1.2rem">
-    <div class="cd-title">🕙 Punto de reunión — Jue 4 dic, 11:00 PM</div>
+    <div class="cd-title">🕙 Punto de reunión — Jue 3 dic, 10:00 PM · SABES San Felipe</div>
     <div class="countdown-wrap" id="cdBienvenida">
       <div class="cd-unit"><div class="cd-num" id="cd0d">--</div><div class="cd-lbl">días</div></div>
       <div class="cd-unit"><div class="cd-num" id="cd0h">--</div><div class="cd-lbl">horas</div></div>
@@ -573,8 +573,7 @@ const ADMIN_COOKIE     = "sigva_coord_session";
 
 // ── Cookie helpers ──────────────────────────────
 // ── CUENTA REGRESIVA ──────────────────────────────────────
-const FECHA_SALIDA = new Date('2026-12-04T05:00:00Z'); // Jue 4 dic 23:00 CST = 05:00 UTC del día siguiente (Vie 4 dic UTC)
-// Nota: 3 dic 23:00 México (CST = UTC-6) → 4 dic 05:00 UTC
+const FECHA_SALIDA = new Date('2026-12-04T04:00:00Z'); // Jue 3 dic 22:00 CST (UTC-6) = 04:00 UTC Vie 4 dic
 function tickCountdown(){
   const ahora = Date.now();
   const diff = FECHA_SALIDA - ahora;
@@ -1419,60 +1418,113 @@ function renderPagos(){
 
     <div style="font-size:12px;font-weight:700;margin-bottom:6px">Historial de depósitos</div>
     ${lista.length===0?'<div style="font-size:12px;color:#9AABB8;text-align:center;padding:1rem">Aún no has registrado ningún depósito.</div>':''}
-    ${lista.map(([k,p])=>`
-      <div class="pago-item ${p.estado||'revision'}">
+    ${lista.map(([k,p])=>{
+      const esEfectivo = p.tipo==='efectivo';
+      const meta = esEfectivo
+        ? `${p.fecha} · 💵 Efectivo · Recibió: ${p.receptor||'—'}${p.descripcion?' · '+p.descripcion:''}`
+        : `${p.fecha} ${p.hora||''} · ${p.banco||'—'} · Ref: ${p.referencia||'—'}`;
+      return `<div class="pago-item ${p.estado||'revision'}">
         <div>
           <div class="pago-monto">$${(+p.monto||0).toLocaleString('es-MX')}</div>
-          <div class="pago-meta">${p.fecha} ${p.hora} · ${p.banco} · Ref: ${p.referencia}</div>
+          <div class="pago-meta">${meta}</div>
         </div>
         <span class="pago-badge ${p.estado==='confirmado'?'badge-conf':p.estado==='rechazado'?'badge-rech':'badge-rev'}">${p.estado==='confirmado'?'✅ Confirmado':p.estado==='rechazado'?'❌ Rechazado':'⏳ En revisión'}</span>
-      </div>`).join('')}
+      </div>`;}).join('')}
 
-    <div style="font-size:12px;font-weight:700;margin:1rem 0 .5rem">Registrar nuevo depósito</div>
+    <div style="font-size:12px;font-weight:700;margin:1rem 0 .5rem">Registrar pago</div>
+    <div class="field">
+      <label>Tipo de pago <span class="req">*</span></label>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button id="btnTipoTransf" onclick="selTipoPago('transferencia')" style="flex:1;padding:9px;border-radius:9px;border:2px solid #0A7455;background:#0A7455;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">💳 Transferencia / Depósito</button>
+        <button id="btnTipoEfectivo" onclick="selTipoPago('efectivo')" style="flex:1;padding:9px;border-radius:9px;border:2px solid #D2DCE8;background:#fff;color:#3A4A5A;font-size:12px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">💵 Efectivo</button>
+      </div>
+    </div>
     <div class="fr2">
-      <div class="field"><label>Monto depositado ($) <span class="req">*</span></label>
+      <div class="field"><label>Monto ($) <span class="req">*</span></label>
         <input type="number" id="np_monto" min="1" placeholder="Ej: 500"></div>
-      <div class="field"><label>Banco desde donde transferiste <span class="req">*</span></label>
-        <input type="text" id="np_banco" placeholder="Ej: BBVA, Banamex..."></div>
-    </div>
-    <div class="fr2">
-      <div class="field"><label>Fecha del depósito <span class="req">*</span></label>
+      <div class="field"><label>Fecha <span class="req">*</span></label>
         <input type="date" id="np_fecha"></div>
-      <div class="field"><label>Hora <span class="req">*</span></label>
-        <input type="time" id="np_hora"></div>
     </div>
-    <div class="field"><label>Número de referencia / rastreo <span class="req">*</span></label>
-      <input type="text" id="np_ref" placeholder="Aparece en tu comprobante bancario"></div>
-    <div class="field"><label>Comprobante (PDF o imagen) <span class="req">*</span></label>
-      <div class="upload" onclick="document.getElementById('np_compr').click()">
-        <input type="file" id="np_compr" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="handleFile(this,'np_comprSt')">
-        <div class="up-ico">💳</div><div class="up-main">Clic para subir comprobante</div>
-        <div class="up-sub" id="np_comprSt">Debe mostrar monto, fecha, banco y referencia</div>
-        <span class="up-tag">PDF / JPG · Máx 5 MB</span></div></div>
-    <button class="btn-primary" id="btnNuevoPago" onclick="registrarPago()">Registrar depósito →</button>
+    <!-- Campos transferencia -->
+    <div id="camposTransf">
+      <div class="fr2">
+        <div class="field"><label>Banco desde donde transferiste <span class="req">*</span></label>
+          <input type="text" id="np_banco" placeholder="Ej: BBVA, Banamex..."></div>
+        <div class="field"><label>Hora <span class="req">*</span></label>
+          <input type="time" id="np_hora"></div>
+      </div>
+      <div class="field"><label>Número de referencia / rastreo <span class="req">*</span></label>
+        <input type="text" id="np_ref" placeholder="Aparece en tu comprobante bancario"></div>
+      <div class="field"><label>Comprobante (PDF o imagen) <span class="req">*</span></label>
+        <div class="upload" onclick="document.getElementById('np_compr').click()">
+          <input type="file" id="np_compr" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="handleFile(this,'np_comprSt')">
+          <div class="up-ico">💳</div><div class="up-main">Clic para subir comprobante</div>
+          <div class="up-sub" id="np_comprSt">Debe mostrar monto, fecha, banco y referencia</div>
+          <span class="up-tag">PDF / JPG · Máx 5 MB</span></div></div>
+    </div>
+    <!-- Campos efectivo -->
+    <div id="camposEfectivo" style="display:none">
+      <div class="field"><label>Descripción del pago <span class="req">*</span></label>
+        <input type="text" id="np_desc" placeholder="Ej: Anticipo viaje diciembre 2026"></div>
+      <div class="field"><label>Entregado a <span class="req">*</span></label>
+        <select id="np_receptor" style="border:2px solid #D2DCE8;border-radius:10px;padding:11px 14px;font-size:14px;font-family:'IBM Plex Sans',sans-serif;width:100%;outline:none">
+          <option value="">— Selecciona —</option>
+          <option value="Fausto Noé Jiménez">Fausto Noé Jiménez</option>
+          <option value="Diana Catalina Ortiz Hurtado">Diana Catalina Ortiz Hurtado</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn-primary" id="btnNuevoPago" onclick="registrarPago()">Registrar pago →</button>
     ${puedeAsiento&&fase<4?'<button class="btn-sec" style="width:100%;margin-top:6px" onclick="cambiarTab(\'tab-asiento\')">🚐 Ir a seleccionar asiento →</button>':''}
   `;
 }
 
+let _tipoPago = 'transferencia';
+window.selTipoPago = function(tipo){
+  _tipoPago = tipo;
+  const bt = document.getElementById('btnTipoTransf');
+  const be = document.getElementById('btnTipoEfectivo');
+  const ct = document.getElementById('camposTransf');
+  const ce = document.getElementById('camposEfectivo');
+  if(tipo==='transferencia'){
+    bt.style.background='#0A7455'; bt.style.color='#fff'; bt.style.borderColor='#0A7455';
+    be.style.background='#fff'; be.style.color='#3A4A5A'; be.style.borderColor='#D2DCE8';
+    ct.style.display=''; ce.style.display='none';
+  } else {
+    be.style.background='#0A7455'; be.style.color='#fff'; be.style.borderColor='#0A7455';
+    bt.style.background='#fff'; bt.style.color='#3A4A5A'; bt.style.borderColor='#D2DCE8';
+    ct.style.display='none'; ce.style.display='';
+  }
+}
+
 window.registrarPago = async function(){
   const monto = document.getElementById('np_monto')?.value.trim();
-  const banco = document.getElementById('np_banco')?.value.trim();
   const fecha = document.getElementById('np_fecha')?.value;
-  const hora  = document.getElementById('np_hora')?.value;
-  const ref_  = document.getElementById('np_ref')?.value.trim();
-  const comp  = document.getElementById('np_compr')?.files[0];
-  if(!monto||!banco||!fecha||!hora||!ref_||!comp){setErr('errorFase3','Completa todos los campos del depósito.');return;}
+  if(!monto||!fecha){setErr('errorFase3','Ingresa monto y fecha.');return;}
   setBtn('btnNuevoPago',true,'Guardando...');
   try{
-    const compB = await toB64(comp);
-    const nuevoPago = {monto,banco,fecha,hora,referencia:ref_,comprobante:compB,estado:'revision',fechaEnvio:new Date().toISOString()};
+    let nuevoPago;
+    if(_tipoPago==='transferencia'){
+      const banco = document.getElementById('np_banco')?.value.trim();
+      const hora  = document.getElementById('np_hora')?.value;
+      const ref_  = document.getElementById('np_ref')?.value.trim();
+      const comp  = document.getElementById('np_compr')?.files[0];
+      if(!banco||!hora||!ref_||!comp){setErr('errorFase3','Completa todos los campos de la transferencia.');setBtn('btnNuevoPago',false,'Registrar pago →');return;}
+      const compB = await toB64(comp);
+      nuevoPago = {tipo:'transferencia',monto,banco,fecha,hora,referencia:ref_,comprobante:compB,estado:'revision',fechaEnvio:new Date().toISOString()};
+    } else {
+      const desc     = document.getElementById('np_desc')?.value.trim();
+      const receptor = document.getElementById('np_receptor')?.value;
+      if(!desc||!receptor){setErr('errorFase3','Ingresa descripción y a quién se entregó.');setBtn('btnNuevoPago',false,'Registrar pago →');return;}
+      nuevoPago = {tipo:'efectivo',monto,fecha,descripcion:desc,receptor,estado:'revision',fechaEnvio:new Date().toISOString()};
+    }
     const pagoRef = await push(ref(db,'alumnos/'+alumnoKey+'/pagos'), nuevoPago);
     if(!alumnoData.pagos) alumnoData.pagos={};
     alumnoData.pagos[pagoRef.key]=nuevoPago;
     await update(ref(db,'alumnos/'+alumnoKey),{ultimoPago:new Date().toISOString()});
     renderPagos();
   }catch(e){setErr('errorFase3','Error: '+e.message);}
-  setBtn('btnNuevoPago',false,'Registrar depósito →');
+  setBtn('btnNuevoPago',false,'Registrar pago →');
 }
 
 // ── TAB ASIENTO (Fase IV) ─────────────────────
@@ -1843,6 +1895,57 @@ window.cargarStatusItinerarioAdmin=async function(){
   if(el) el.innerHTML=html;
 }
 
+let _edTipoPago = 'transferencia';
+window.edSelTipo = function(tipo){
+  _edTipoPago = tipo;
+  const bt=document.getElementById('ed_btnTransf');
+  const be=document.getElementById('ed_btnEfectivo');
+  const ct=document.getElementById('ed_camposTransf');
+  const ce=document.getElementById('ed_camposEfectivo');
+  if(tipo==='transferencia'){
+    bt.style.background='#0A7455';bt.style.color='#fff';bt.style.borderColor='#0A7455';
+    be.style.background='#fff';be.style.color='#3A4A5A';be.style.borderColor='#D2DCE8';
+    ct.style.display='';ce.style.display='none';
+  } else {
+    be.style.background='#0A7455';be.style.color='#fff';be.style.borderColor='#0A7455';
+    bt.style.background='#fff';bt.style.color='#3A4A5A';bt.style.borderColor='#D2DCE8';
+    ct.style.display='none';ce.style.display='';
+  }
+}
+
+window.adminRegistrarPago = async function(){
+  const monto = document.getElementById('ed_pMonto')?.value.trim();
+  const fecha = document.getElementById('ed_pFecha')?.value;
+  const msgEl = document.getElementById('ed_pMsg');
+  const showMsg=(m,ok)=>{msgEl.style.display='block';msgEl.style.background=ok?'#DFF4EE':'#FEE2E2';msgEl.style.color=ok?'#1A5C35':'#7D0000';msgEl.textContent=m;};
+  if(!monto||!fecha){showMsg('Ingresa monto y fecha.',false);return;}
+  try{
+    let nuevoPago;
+    if(_edTipoPago==='transferencia'){
+      const banco=document.getElementById('ed_pBanco')?.value.trim();
+      const ref_=document.getElementById('ed_pRef')?.value.trim();
+      const comp=document.getElementById('ed_pCompr')?.files[0];
+      let compB=null;
+      if(comp) compB=await toB64(comp);
+      nuevoPago={tipo:'transferencia',monto,banco:banco||'—',fecha,referencia:ref_||'—',estado:'confirmado',capturadoPor:'coordinador',fechaEnvio:new Date().toISOString()};
+      if(compB) nuevoPago.comprobante=compB;
+    } else {
+      const desc=document.getElementById('ed_pDesc')?.value.trim();
+      const receptor=document.getElementById('ed_pReceptor')?.value;
+      if(!desc||!receptor){showMsg('Ingresa descripción y receptor.',false);return;}
+      nuevoPago={tipo:'efectivo',monto,fecha,descripcion:desc,receptor,estado:'confirmado',capturadoPor:'coordinador',fechaEnvio:new Date().toISOString()};
+    }
+    await push(ref(db,'alumnos/'+_editKey+'/pagos'), nuevoPago);
+    await update(ref(db,'alumnos/'+_editKey),{ultimoPago:new Date().toISOString()});
+    // Actualizar totalInscritos si es primer pago confirmado y aún en fase <3
+    showMsg('✅ Pago registrado y confirmado.',true);
+    // Reset campos
+    ['ed_pMonto','ed_pFecha','ed_pBanco','ed_pRef','ed_pDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    const sel=document.getElementById('ed_pReceptor');if(sel)sel.value='';
+    document.getElementById('ed_pComprSt').textContent='PDF / JPG opcional';
+  }catch(e){showMsg('Error: '+e.message,false);}
+}
+
 window.confirmarPago=async function(aKey,pKey){
   if(!confirm('¿Confirmar este pago?')) return;
   await update(ref(db,'alumnos/'+aKey+'/pagos/'+pKey),{estado:'confirmado',fechaConfirmacion:new Date().toISOString()});
@@ -2046,7 +2149,7 @@ window.borrarAlumno = async function(){
 
   <!-- Cuenta regresiva panel -->
   <div style="text-align:center;margin-bottom:12px">
-    <div class="cd-panel-title">🕙 Salida — Jue 4 dic, 11:00 PM · Universidad SABES San Felipe</div>
+    <div class="cd-panel-title">🕙 Reunión — Jue 3 dic, 10:00 PM · Av. Universidad 300, San Felipe Gto.</div>
     <div class="cd-panel-wrap" id="cdPanel">
       <div class="cd-panel-unit"><div class="cd-panel-num" id="cd1d">--</div><div class="cd-panel-lbl">días</div></div>
       <div class="cd-panel-unit"><div class="cd-panel-num" id="cd1h">--</div><div class="cd-panel-lbl">horas</div></div>
@@ -2433,6 +2536,53 @@ window.salir = function(){
       <button onclick="guardarEdicionAlumno()" style="flex:1;background:#0A7455;color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">💾 Guardar cambios</button>
       <button onclick="borrarAlumno()" style="background:#FEE2E2;color:#C8000A;border:1.5px solid #FCA5A5;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">🗑️ Borrar</button>
     </div>
+
+    <!-- Captura de pago por coordinador -->
+    <details style="margin-top:18px">
+      <summary style="font-size:12px;font-weight:700;color:#0A7455;cursor:pointer;padding:8px 0">💰 Registrar pago (coordinador)</summary>
+      <div style="margin-top:10px;display:grid;gap:8px">
+        <div style="display:flex;gap:8px">
+          <button id="ed_btnTransf" onclick="edSelTipo('transferencia')" style="flex:1;padding:8px;border-radius:8px;border:2px solid #0A7455;background:#0A7455;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">💳 Transferencia</button>
+          <button id="ed_btnEfectivo" onclick="edSelTipo('efectivo')" style="flex:1;padding:8px;border-radius:8px;border:2px solid #D2DCE8;background:#fff;color:#3A4A5A;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">💵 Efectivo</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><label style="font-size:11px;font-weight:700;color:#3D5A6A;display:block;margin-bottom:3px">Monto ($) *</label>
+            <input id="ed_pMonto" type="number" min="1" placeholder="500" style="width:100%;border:1.5px solid #D2DCE8;border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
+          <div><label style="font-size:11px;font-weight:700;color:#3D5A6A;display:block;margin-bottom:3px">Fecha *</label>
+            <input id="ed_pFecha" type="date" style="width:100%;border:1.5px solid #D2DCE8;border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
+        </div>
+        <!-- Campos transferencia coordinador -->
+        <div id="ed_camposTransf">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div><label style="font-size:11px;font-weight:700;color:#3D5A6A;display:block;margin-bottom:3px">Banco</label>
+              <input id="ed_pBanco" type="text" placeholder="BBVA, HSBC..." style="width:100%;border:1.5px solid #D2DCE8;border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
+            <div><label style="font-size:11px;font-weight:700;color:#3D5A6A;display:block;margin-bottom:3px">Referencia</label>
+              <input id="ed_pRef" type="text" placeholder="No. de rastreo" style="width:100%;border:1.5px solid #D2DCE8;border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
+          </div>
+          <div><label style="font-size:11px;font-weight:700;color:#3D5A6A;display:block;margin-bottom:3px">Comprobante (opcional)</label>
+            <div class="upload" onclick="document.getElementById('ed_pCompr').click()" style="padding:10px">
+              <input type="file" id="ed_pCompr" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="handleFile(this,'ed_pComprSt')">
+              <div class="up-main" style="font-size:12px">Subir comprobante</div>
+              <div class="up-sub" id="ed_pComprSt" style="font-size:11px">PDF / JPG opcional</div>
+            </div>
+          </div>
+        </div>
+        <!-- Campos efectivo coordinador -->
+        <div id="ed_camposEfectivo" style="display:none">
+          <div style="margin-bottom:8px"><label style="font-size:11px;font-weight:700;color:#3D5A6A;display:block;margin-bottom:3px">Descripción *</label>
+            <input id="ed_pDesc" type="text" placeholder="Anticipo viaje diciembre 2026" style="width:100%;border:1.5px solid #D2DCE8;border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
+          <div><label style="font-size:11px;font-weight:700;color:#3D5A6A;display:block;margin-bottom:3px">Recibió *</label>
+            <select id="ed_pReceptor" style="width:100%;border:1.5px solid #D2DCE8;border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;box-sizing:border-box">
+              <option value="">— Selecciona —</option>
+              <option value="Fausto Noé Jiménez">Fausto Noé Jiménez</option>
+              <option value="Diana Catalina Ortiz Hurtado">Diana Catalina Ortiz Hurtado</option>
+            </select>
+          </div>
+        </div>
+        <div id="ed_pMsg" style="display:none;font-size:11px;padding:6px 10px;border-radius:7px"></div>
+        <button onclick="adminRegistrarPago()" style="background:#1565C0;color:#fff;border:none;border-radius:9px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">💾 Guardar pago (confirmado)</button>
+      </div>
+    </details>
   </div>
 </div>
 
