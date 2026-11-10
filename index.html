@@ -1743,10 +1743,33 @@ async function cargarAdmin(){
   // Usar índice ligero /adminIndex en lugar de /alumnos
   const snap=await get(ref(db,'adminIndex'));
   const todos=snap.val()||{};
+  const LIMITE_VIAJE = 20;
+
+  // Construir lista con clave
+  const lista = Object.entries(todos).map(([key,v])=>({key,v}));
+
+  // Fecha del primer pago confirmado (para desempate)
+  function primerPagoFecha(v){
+    const pagos = Object.values(v.pagosIdx||{}).filter(p=>p.estado==='confirmado' && p.fecha);
+    if(!pagos.length) return '9999';
+    return pagos.map(p=>p.fecha).sort()[0];
+  }
+
+  // Ordenar: docs completos (fase>=3) primero, luego por abonado DESC, luego fecha primer pago ASC
+  lista.sort((a,b)=>{
+    const faseA = a.v.fase||1, faseB = b.v.fase||1;
+    const docsA = faseA>=3 ? 1 : 0, docsB = faseB>=3 ? 1 : 0;
+    if(docsB !== docsA) return docsB - docsA; // docs completos primero
+    if(b.v.abonado !== a.v.abonado) return (b.v.abonado||0) - (a.v.abonado||0); // más abono primero
+    return primerPagoFecha(a.v).localeCompare(primerPagoFecha(b.v)); // pago más antiguo primero
+  });
+
   const tbody=document.getElementById('adminTbody');
   tbody.innerHTML='';
   let n=0;
-  for(const [key,v] of Object.entries(todos)){
+  let separadorInsertado = false;
+
+  for(const {key,v} of lista){
     n++;
     const pagosIdx=v.pagosIdx||{};
     const abonado=v.abonado||0;
@@ -1754,9 +1777,20 @@ async function cargarAdmin(){
     const faseLabels=['0','I','II','III','IV','V'];
     const fl=faseLabels[v.fase!=null?v.fase:1]||'I';
     const fcls=['fase0-b','fase1-b','fase2-b','fase3-b','fase4-b','fase5-b'][v.fase!=null?v.fase:1]||'fase1-b';
+    const enEspera = n > LIMITE_VIAJE;
+
+    // Insertar separador de lista de espera
+    if(enEspera && !separadorInsertado){
+      separadorInsertado = true;
+      const sepTr = document.createElement('tr');
+      sepTr.innerHTML=`<td colspan="9" style="background:#FEF3C7;color:#92400E;font-weight:700;font-size:12px;text-align:center;padding:8px;border-top:2px solid #F59E0B">⏳ LISTA DE ESPERA — lugares ${LIMITE_VIAJE+1} en adelante</td>`;
+      tbody.appendChild(sepTr);
+    }
+
     const tr=document.createElement('tr');
+    tr.style.cssText = enEspera ? 'opacity:.7;background:#FFFBEB' : (n<=LIMITE_VIAJE && (v.fase||1)>=3 && abonado>0 ? 'background:#F0FAF5' : '');
     tr.innerHTML=`
-      <td>${n}</td>
+      <td style="font-weight:700;color:${enEspera?'#92400E':'#0A7455'}">${enEspera?'⏳':('🏆')}${n}</td>
       <td style="font-weight:600">${v.apP||''} ${v.apM||''}<br><span style="font-size:10px;color:#6B7B8D">${v.nombres||''}</span></td>
       <td>${v.matricula||''}${tipoMatricula(v.matricula||'')==='docente'?'<br><span style="font-size:9px;background:#1565C0;color:#fff;border-radius:3px;padding:1px 5px">DOCENTE</span>':''}</td>
       <td style="font-size:10px">${v.carrera||''}</td>
@@ -1777,7 +1811,9 @@ async function cargarAdmin(){
       </td>`;
     tbody.appendChild(tr);
   }
-  document.getElementById('adminConteo').textContent=n+' alumno(s) registrados';
+  const enViaje = Math.min(n, LIMITE_VIAJE);
+  const enEsperaTotal = Math.max(0, n - LIMITE_VIAJE);
+  document.getElementById('adminConteo').textContent=`${n} alumno(s) registrados — ${enViaje} en viaje${enEsperaTotal>0?' · '+enEsperaTotal+' en lista de espera':''}`;
   await update(ref(db,'config'), {totalInscritos: n});
   } catch(e){
     console.error('Error cargando admin:', e);
