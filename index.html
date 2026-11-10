@@ -2186,16 +2186,20 @@ window.guardarEdicionAlumno = async function(){
 window.borrarAlumno = async function(){
   if(!_editKey) return;
   if(!confirm('¿Borrar este registro permanentemente? Esta acción no se puede deshacer.')) return;
+  try{
   // Obtener matrícula antes de borrar para limpiar /creds
   const aSnap = await get(ref(db,'alumnos/'+_editKey));
   const aData = aSnap.val();
+  // Borrar de los tres nodos
   await remove(ref(db,'alumnos/'+_editKey));
+  await remove(ref(db,'adminIndex/'+_editKey));
   if(aData?.matricula){
     const matKey = aData.matricula.replace(/[.#$\[\]]/g,'_');
     await remove(ref(db,'creds/'+matKey));
   }
   window.cerrarModalEditar();
   cargarAdmin();
+  }catch(e){ alert('Error al borrar: '+e.message); }
 }
 </script>
 
