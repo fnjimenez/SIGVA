@@ -954,13 +954,29 @@ window.addEventListener('DOMContentLoaded', async () => {
     if(adminSec) adminSec.style.display='block';
     abrirPanelAdmin();
   }
-  // Ocultar .wrap hasta que el alumno pase el flujo itinerario
-  // (a menos que ya tenga sesión activa y el itinerario ya esté decidido)
   const mat = getCookie('v_mat');
   const pw  = getCookie('v_pw');
+
+  // Si hay sesión guardada, ocultar pantalla de bienvenida de inmediato
+  // y mostrar un spinner mientras Firebase carga
+  if(mat && pw){
+    document.getElementById('pantallaVideo').style.display='none';
+    document.querySelector('.wrap').style.display='block';
+    // Mostrar indicador de carga rápido
+    const loadMsg = document.createElement('div');
+    loadMsg.id = 'sesionLoadMsg';
+    loadMsg.style.cssText='text-align:center;padding:3rem;color:#6B7B8D;font-size:14px';
+    loadMsg.innerHTML='⏳ Cargando tu sesión…';
+    document.querySelector('.wrap').prepend(loadMsg);
+  }
+
   const cfg = await get(ref(db,'config'));
   const cfgVal = cfg.val()||{};
   if(cfgVal.montoMinimo) montoMinimo = cfgVal.montoMinimo;
+
+  // Quitar spinner
+  const loadMsg2 = document.getElementById('sesionLoadMsg');
+  if(loadMsg2) loadMsg2.remove();
 
   // Pre-llenar campo matrícula si ya existe en sesión
   if(mat){
