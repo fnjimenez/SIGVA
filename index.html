@@ -1375,6 +1375,10 @@ window.guardarFase2 = async function(){
   if(!ine||!nss||!afil||!vig||!ineF||!imssF||!credF||(afil==='empresarial'&&!emp)){
     setErr('errorFase2','Faltan campos o archivos requeridos.');return;
   }
+  // Validar tamaño de archivos (máx 5 MB cada uno)
+  for(const [nombre,archivo] of [['INE',ineF],['Constancia IMSS',imssF],['Credencial',credF]]){
+    if(archivo.size>MAX_FILE_BYTES){setErr('errorFase2',nombre+' supera el límite de 5 MB ('+Math.round(archivo.size/1024)+' KB). Comprime o reduce el PDF antes de subirlo.');return;}
+  }
   // Validar que la fecha de generación no sea futura ni mayor a 7 días de antigüedad
   const hoy = new Date(); hoy.setHours(23,59,59,999);
   const hace7 = new Date(); hace7.setDate(hace7.getDate()-7); hace7.setHours(0,0,0,0);
@@ -1679,7 +1683,8 @@ function renderProgreso(n){
 
 // ── HELPERS ───────────────────────────────────
 function toB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});}
-window.handleFile=function(input,sid){const el=document.getElementById(sid);if(!el)return;if(input.files&&input.files[0]){const f=input.files[0];el.innerHTML='✅ '+f.name+' ('+Math.round(f.size/1024)+' KB)';el.style.color='#0A7455';input.closest('.upload').style.borderColor='#0A7455';input.closest('.upload').style.background='#F0FAF5';}};
+const MAX_FILE_BYTES = 5*1024*1024; // 5 MB
+window.handleFile=function(input,sid){const el=document.getElementById(sid);if(!el)return;if(input.files&&input.files[0]){const f=input.files[0];if(f.size>MAX_FILE_BYTES){el.innerHTML='⚠️ Archivo demasiado grande ('+Math.round(f.size/1024)+' KB). Máximo 5 MB.';el.style.color='#C8000A';input.closest('.upload').style.borderColor='#C8000A';input.closest('.upload').style.background='#FEE2E2';input.value='';return;}el.innerHTML='✅ '+f.name+' ('+Math.round(f.size/1024)+' KB)';el.style.color='#0A7455';input.closest('.upload').style.borderColor='#0A7455';input.closest('.upload').style.background='#F0FAF5';}};
 function setErr(id,msg){const el=document.getElementById(id);if(el){el.textContent='⚠️ '+msg;el.style.display='block';el.scrollIntoView({behavior:'smooth',block:'center'});}}
 function setBtn(id,on,txt){const b=document.getElementById(id);if(!b)return;b.disabled=on;if(on&&txt){b.dataset.orig=b.innerHTML;b.innerHTML='⏳ '+txt;b.style.opacity='.7';}else{b.innerHTML=b.dataset.orig||b.innerHTML;b.style.opacity='1';}}
 window.salir=function(){
