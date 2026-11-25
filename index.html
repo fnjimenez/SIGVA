@@ -2102,81 +2102,199 @@ window.rechazarPago=async function(aKey,pKey){
   cargarAdmin();
 }
 
-window.verDocs=function(key){
-  get(ref(db,'alumnos/'+key)).then(snap=>{
-    const v=snap.val();
-    if(!v) return;
-    const docs=[
-      {t:'INE / Identificación oficial', d:v.ineFile},
-      {t:'Credencial escolar',           d:v.credFile},
-      {t:'Número de Seguro Social (IMSS)',d:v.imssFile},
-    ];
-    const pagos=Object.entries(v.pagos||{}).map(([k,p],i)=>({
-      t:'Comprobante de pago #'+(i+1)+' — $'+(+p.monto||0).toLocaleString('es-MX')+' ('+( p.estado==='confirmado'?'✅ Confirmado':p.estado==='rechazado'?'❌ Rechazado':'⏳ En revisión')+')',
-      d:p.comprobante
-    }));
-    const todos=[...docs,...pagos].filter(x=>x.d);
-    if(todos.length===0){alert('Este alumno no ha subido ningún documento.');return;}
+// ── Modal de revisión de documentos ──
+let _docsKey = null;
+let _docsData = null;
 
-    // Modal de documentos
-    let modal=document.getElementById('modalDocs');
+window.verDocs = function(key){
+  _docsKey = key;
+  get(ref(db,'alumnos/'+key)).then(snap=>{
+    const v = snap.val();
+    if(!v){ alert('No se encontró el alumno.'); return; }
+    _docsData = v;
+
+    // Definición fija de los 3 documentos requeridos
+    const docsDef = [
+      { id:'ineFile',   label:'INE / Identificación oficial',      icon:'🪪' },
+      { id:'credFile',  label:'Credencial escolar',                 icon:'🎓' },
+      { id:'imssFile',  label:'Número de Seguro Social (IMSS)',     icon:'🏥' },
+    ];
+
+    // Pagos
+    const pagosEntries = Object.entries(v.pagos||{});
+
+    // Crear o reutilizar modal
+    let modal = document.getElementById('modalDocs');
     if(!modal){
-      modal=document.createElement('div');
-      modal.id='modalDocs';
-      modal.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999999;overflow-y:auto;padding:20px;font-family:"IBM Plex Sans",sans-serif';
-      modal.innerHTML=`<div style="background:#fff;border-radius:16px;max-width:460px;margin:40px auto;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,.25)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h3 style="margin:0;font-size:15px;color:#1A2332" id="modalDocsNombre">📄 Documentos</h3>
-          <button onclick="document.getElementById('modalDocs').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6B8090">✕</button>
-        </div>
-        <div id="modalDocsLista" style="display:grid;gap:8px"></div>
-      </div>`;
+      modal = document.createElement('div');
+      modal.id = 'modalDocs';
+      modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:999999;overflow-y:auto;padding:20px;font-family:"IBM Plex Sans",sans-serif';
       document.body.appendChild(modal);
     }
-    document.getElementById('modalDocsNombre').textContent='📄 Documentos — '+(v.nombres||'')+' '+(v.apP||'');
-    // Guardar docs en variable global para acceso desde onclick
-    window._docsActuales = todos;
-    document.getElementById('modalDocsLista').innerHTML=todos.map((doc,i)=>`
-      <button onclick="abrirDocumento(${i})"
-         style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px solid #D2DCE8;border-radius:10px;text-decoration:none;color:#1A2332;font-size:13px;font-weight:600;transition:background .12s;background:#fff;cursor:pointer;width:100%;text-align:left"
-         onmouseover="this.style.background='#F0F7FF'" onmouseout="this.style.background='#fff'">
-        <span style="font-size:20px">${doc.t.startsWith('Comprobante')?'🧾':'📄'}</span>
-        <span>${doc.t}</span>
-        <span style="margin-left:auto;font-size:11px;color:#0A7455;font-weight:700">Abrir →</span>
-      </button>`).join('');
-    modal.style.display='block';
+
+    const estadoColors = {
+      aprobado:  { bg:'#DFF4EE', bd:'#0A7455', txt:'#064030', label:'✅ Aprobado' },
+      reemplazar:{ bg:'#FEF3DC', bd:'#B07800', txt:'#6B4000', label:'⚠️ Requiere reemplazar' },
+      falta:     { bg:'#FDEAEA', bd:'#C8000A', txt:'#7A0006', label:'❌ Falta / No entregado' },
+      pendiente: { bg:'#F0F4F8', bd:'#8FA0B4', txt:'#3A4A5A', label:'⏳ Sin revisar' },
+    };
+
+    function docEstadoActual(fieldId){
+      if(fieldId.startsWith('pago_')){
+        const pk = fieldId.replace('pago_','');
+        const est = (v.pagos||{})[pk]?.estado||'pendiente';
+        // Mapear estado de pago al vocabulario de revisión
+        return est==='confirmado'?'aprobado': est==='rechazado'?'reemplazar':'pendiente';
+      }
+      return (v.revisionDocs && v.revisionDocs[fieldId]) || 'pendiente';
+    }
+
+    function renderSelectEstado(fieldId, esDoc){
+      if(!esDoc) return ''; // pagos no tienen selector de estado
+      const actual = docEstadoActual(fieldId);
+      const col = estadoColors[actual] || estadoColors.pendiente;
+      return `<select onchange="guardarEstadoDoc('${fieldId}',this.value)"
+        style="border:1.5px solid ${col.bd};border-radius:7px;padding:5px 8px;font-size:11px;font-weight:700;color:${col.txt};background:${col.bg};cursor:pointer;font-family:'IBM Plex Sans',sans-serif;min-width:170px">
+        <option value="pendiente"  ${actual==='pendiente'?'selected':''}>⏳ Sin revisar</option>
+        <option value="aprobado"   ${actual==='aprobado'?'selected':''}>✅ Aprobado</option>
+        <option value="reemplazar" ${actual==='reemplazar'?'selected':''}>⚠️ Requiere reemplazar</option>
+        <option value="falta"      ${actual==='falta'?'selected':''}>❌ Falta</option>
+      </select>`;
+    }
+
+    function renderDocRow(icon, label, fileData, fieldId, esDoc=true){
+      const tiene = !!fileData;
+      const estado = esDoc ? docEstadoActual(fieldId) : null;
+      const col = esDoc ? (estadoColors[estado]||estadoColors.pendiente) : {bg:'#F7F9FC',bd:'#C8D4E0'};
+      const abrirBtn = tiene
+        ? `<button onclick="abrirBase64('${fieldId}')"
+             style="background:#0A7455;color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+             📂 Abrir
+           </button>`
+        : `<span style="font-size:11px;color:#9FB0C0;font-style:italic">Sin archivo</span>`;
+      return `<div style="border:1.5px solid ${col.bd};border-radius:11px;padding:12px 14px;background:${col.bg};display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:22px;flex-shrink:0">${icon}</span>
+          <span style="font-size:13px;font-weight:700;color:#1A2332;flex:1">${label}</span>
+          ${abrirBtn}
+        </div>
+        ${esDoc ? `<div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:#6B8090;min-width:60px">Estado:</span>
+          ${renderSelectEstado(fieldId, esDoc)}
+        </div>` : ''}
+      </div>`;
+    }
+
+    // Construir HTML
+    let html = `<div style="background:#fff;border-radius:16px;max-width:520px;margin:30px auto;padding:24px;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+        <div>
+          <div style="font-size:11px;color:#6B8090;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">Revisión de documentos</div>
+          <h3 style="margin:0;font-size:16px;color:#1A2332;font-weight:800">${v.nombres||''} ${v.apP||''} ${v.apM||''}</h3>
+          <div style="font-size:12px;color:#8FA0B4;margin-top:2px">${v.matricula||''} · Fase ${v.fase||1}</div>
+        </div>
+        <button onclick="document.getElementById('modalDocs').style.display='none'"
+          style="background:#F0F4F8;border:none;border-radius:8px;width:32px;height:32px;font-size:18px;cursor:pointer;color:#6B8090;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+      </div>
+
+      <div style="height:1px;background:#EEF2F6;margin:14px 0"></div>
+      <div style="font-size:11px;font-weight:700;color:#6B8090;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📋 Documentos requeridos</div>
+      <div style="display:grid;gap:10px" id="modalDocsLista">`;
+
+    for(const doc of docsDef){
+      html += renderDocRow(doc.icon, doc.label, v[doc.id], doc.id, true);
+    }
+
+    if(pagosEntries.length > 0){
+      html += `<div style="height:1px;background:#EEF2F6;margin:4px 0"></div>
+        <div style="font-size:11px;font-weight:700;color:#6B8090;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">🧾 Comprobantes de pago</div>`;
+      pagosEntries.forEach(([pk, p], i)=>{
+        const est = p.estado==='confirmado'?'✅ Confirmado':p.estado==='rechazado'?'❌ Rechazado':'⏳ En revisión';
+        const label = `Pago #${i+1} — $${(+p.monto||0).toLocaleString('es-MX')} · ${est}`;
+        html += renderDocRow('🧾', label, p.comprobante, 'pago_'+pk, true);
+      });
+    }
+
+    html += `</div>
+      <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
+        <button onclick="document.getElementById('modalDocs').style.display='none'"
+          style="background:#F0F4F8;border:none;border-radius:9px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;color:#3A4A5A">Cerrar</button>
+        <button onclick="guardarRevisionDocs()"
+          style="background:#0A7455;color:#fff;border:none;border-radius:9px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">💾 Guardar revisión</button>
+      </div>
+    </div>`;
+
+    modal.innerHTML = html;
+    modal.style.display = 'block';
   });
 }
 
-// Convierte base64 a Blob y abre en nueva pestaña (evita bloqueo de data: URLs)
-window.abrirDocumento = function(i){
-  const doc = (window._docsActuales||[])[i];
-  if(!doc||!doc.d) return;
+// Guarda estado de un documento o pago (live, al cambiar el select)
+window.guardarEstadoDoc = function(fieldId, estado){
+  if(!_docsKey) return;
+  if(fieldId.startsWith('pago_')){
+    // Comprobante de pago → actualizar estado en /pagos/{pk}/estado
+    const pk = fieldId.replace('pago_','');
+    const nuevoEstado = estado==='aprobado'?'confirmado': estado==='falta'||estado==='reemplazar'?'rechazado':'pendiente';
+    update(ref(db,'alumnos/'+_docsKey+'/pagos/'+pk), { estado: nuevoEstado })
+      .catch(e=>console.error('Error guardando estado pago:',e));
+  } else {
+    // Documento → guardar en /revisionDocs
+    update(ref(db,'alumnos/'+_docsKey+'/revisionDocs'), { [fieldId]: estado })
+      .then(()=>{ if(_docsData) _docsData.revisionDocs = {...(_docsData.revisionDocs||{}), [fieldId]: estado}; })
+      .catch(e=>console.error('Error guardando estado doc:',e));
+  }
+}
+
+// Guarda toda la revisión y actualiza adminIndex
+window.guardarRevisionDocs = async function(){
+  if(!_docsKey) return;
   try {
-    // doc.d puede ser "data:application/pdf;base64,XXXX" o solo el base64
-    let b64 = doc.d;
-    let mime = 'application/pdf';
+    const snap = await get(ref(db,'alumnos/'+_docsKey));
+    const v = snap.val()||{};
+    // Verificar si todos los 3 docs están aprobados → actualizar fase a 3 si estaba en 2
+    const rev = v.revisionDocs||{};
+    const todosAprobados = rev.ineFile==='aprobado' && rev.credFile==='aprobado' && rev.imssFile==='aprobado';
+    const alguno = rev.ineFile||rev.credFile||rev.imssFile;
+    if(todosAprobados && (v.fase||1) < 3){
+      await update(ref(db,'alumnos/'+_docsKey), { fase: 3 });
+      await update(ref(db,'creds/'+(v.matricula||'').replace(/[.#$\[\]]/g,'_')), { fase: 3 });
+    }
+    await syncAdminIndex(_docsKey, {...v, revisionDocs: rev, fase: todosAprobados && (v.fase||1)<3 ? 3 : v.fase});
+    document.getElementById('modalDocs').style.display='none';
+    cargarAdmin();
+    alert(todosAprobados ? '✅ Documentos aprobados. Fase actualizada a III.' : '💾 Revisión guardada.');
+  } catch(e){ alert('Error: '+e.message); }
+}
+
+// Convierte base64 a Blob y abre en nueva pestaña
+window.abrirBase64 = function(fieldId){
+  if(!_docsData) return;
+  let raw;
+  if(fieldId.startsWith('pago_')){
+    const pk = fieldId.replace('pago_','');
+    raw = (_docsData.pagos||{})[pk]?.comprobante;
+  } else {
+    raw = _docsData[fieldId];
+  }
+  if(!raw){ alert('No hay archivo para este documento.'); return; }
+  try {
+    let b64 = raw, mime = 'application/pdf';
     if(b64.startsWith('data:')){
       const sep = b64.indexOf(',');
-      const header = b64.substring(5, sep); // e.g. "application/pdf;base64"
-      mime = header.split(';')[0];
+      mime = b64.substring(5,sep).split(';')[0];
       b64 = b64.substring(sep+1);
     }
     const bytes = atob(b64);
     const arr = new Uint8Array(bytes.length);
     for(let j=0;j<bytes.length;j++) arr[j]=bytes.charCodeAt(j);
-    const blob = new Blob([arr], {type: mime});
+    const blob = new Blob([arr],{type:mime});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 5000);
-  } catch(e){
-    alert('No se pudo abrir el documento: '+e.message);
-  }
+    a.href=url; a.target='_blank'; a.rel='noopener';
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },5000);
+  } catch(e){ alert('No se pudo abrir: '+e.message); }
 }
 
 window.exportarCSV=async function(){
