@@ -1162,7 +1162,7 @@ function renderEstado(){
   const cont = document.getElementById('estadoBody');
   const fases = [
     {n:1,lbl:'Interés formal',desc:'Completa tus datos personales y compromisos.'},
-    {n:2,lbl:'Documentos',desc:'Sube INE, credencial SABES y vigencia IMSS.'},
+    {n:2,lbl:'Documentos',desc:'Sube INE, credencial SABES y Constancia de Vigencia IMSS.'},
     {n:3,lbl:'Anticipo / pagos',desc:'Registra tus comprobantes de depósito.'},
     {n:4,lbl:'Selección de asiento',desc:'Elige tu lugar en la Sprinter.'},
     {n:5,lbl:'Confirmado',desc:'¡Todo listo! Espera el itinerario final.'},
@@ -1310,12 +1310,12 @@ function renderDocs(){
     <div class="field"><label>Número de clave de elector / folio INE <span class="req">*</span></label>
       <div class="hint">Campo "Clave de elector" en el anverso de tu INE (18 caracteres).</div>
       <input type="text" id="f2_ine" value="${alumnoData.numeroINE||''}" ${bloqueado?'disabled':''} style="text-transform:uppercase" placeholder="Ej: JMFNFR82010821H100"></div>
-    <div class="field"><label>INE en PDF (ambos lados, 1 archivo) <span class="req">*</span></label>
+    <div class="field"><label>Credencial de Elector INE en PDF (ambos lados) <span class="req">*</span></label>
       ${bloqueado&&alumnoData.ineFile?'<div style="color:#0A7455;font-size:12px;font-weight:600">✅ INE subida</div>':''}
       ${!bloqueado?`<div class="upload" onclick="document.getElementById('f2_ineF').click()">
         <input type="file" id="f2_ineF" accept=".pdf" style="display:none" onchange="handleFile(this,'f2_ineSt')">
-        <div class="up-ico">🪪</div><div class="up-main">Clic para subir INE PDF</div>
-        <div class="up-sub" id="f2_ineSt">Ambos lados · Un solo archivo PDF</div>
+        <div class="up-ico">🪪</div><div class="up-main">Credencial de Elector INE — PDF</div>
+        <div class="up-sub" id="f2_ineSt">Escanea ambos lados en un solo archivo PDF</div>
         <span class="up-tag">PDF · Máx 5 MB</span></div>`:''}
     </div>
     <div class="fr2">
@@ -1332,23 +1332,23 @@ function renderDocs(){
       <label>Nombre de empresa / razón social <span class="req">*</span></label>
       <input type="text" id="f2_empresa" value="${alumnoData.empresa||''}" ${bloqueado?'disabled':''}>
     </div>
-    <div class="field"><label>Fecha de generación de la constancia IMSS <span class="req">*</span></label>
+    <div class="field"><label>Fecha de generación de la Constancia de Vigencia IMSS <span class="req">*</span></label>
       <div class="hint">Ingresa la fecha en que descargaste / imprimiste la constancia (no puede ser futura ni tener más de 7 días de antigüedad). La constancia debe indicar vigencia <strong>al menos hasta el 26 de noviembre de 2026</strong>.</div>
       <input type="date" id="f2_vig" value="${alumnoData.fechaVigencia||''}" max="${(()=>{const h=new Date();return h.toISOString().split('T')[0];})()}" min="${(()=>{const s=new Date();s.setDate(s.getDate()-7);return s.toISOString().split('T')[0];})()}" ${bloqueado?'disabled':''}></div>
-    <div class="field"><label>Constancia vigencia IMSS (PDF) <span class="req">*</span></label>
+    <div class="field"><label>Constancia de Vigencia IMSS (PDF) <span class="req">*</span></label>
       ${bloqueado&&alumnoData.imssFile?'<div style="color:#0A7455;font-size:12px;font-weight:600">✅ Constancia IMSS subida</div>':''}
       ${!bloqueado?`<div class="upload" onclick="document.getElementById('f2_imssF').click()">
         <input type="file" id="f2_imssF" accept=".pdf" style="display:none" onchange="handleFile(this,'f2_imssSt')">
-        <div class="up-ico">🛡️</div><div class="up-main">Clic para subir constancia IMSS PDF</div>
-        <div class="up-sub" id="f2_imssSt">Descargada de serviciosdigitales.imss.gob.mx</div>
+        <div class="up-ico">🛡️</div><div class="up-main">Clic para subir Constancia de Vigencia IMSS (PDF)</div>
+        <div class="up-sub" id="f2_imssSt">Descarga la más reciente en <a href="https://serviciosdigitales.imss.gob.mx/gestionAsegurados-web-externo/vigencia" target="_blank" rel="noopener" style="color:#0A7455;font-weight:600">serviciosdigitales.imss.gob.mx</a></div>
         <span class="up-tag">PDF · Máx 3 MB</span></div>`:''}
     </div>
-    <div class="field"><label>Credencial SABES en PDF (ambos lados) <span class="req">*</span></label>
+    <div class="field"><label>Credencial SABES en PDF (ambos lados, firmada) <span class="req">*</span></label>
       ${bloqueado&&alumnoData.credFile?'<div style="color:#0A7455;font-size:12px;font-weight:600">✅ Credencial subida</div>':''}
       ${!bloqueado?`<div class="upload" onclick="document.getElementById('f2_credF').click()">
         <input type="file" id="f2_credF" accept=".pdf" style="display:none" onchange="handleFile(this,'f2_credSt')">
-        <div class="up-ico">🎓</div><div class="up-main">Clic para subir credencial SABES PDF</div>
-        <div class="up-sub" id="f2_credSt">Vigente · Ambos lados · Un solo archivo</div>
+        <div class="up-ico">🎓</div><div class="up-main">Credencial SABES — Escaneada y firmada</div>
+        <div class="up-sub" id="f2_credSt">Vigente · Ambos lados · Firmada por el estudiante · Un solo PDF</div>
         <span class="up-tag">PDF · Máx 5 MB</span></div>`:''}
     </div>
     ${!bloqueado&&(alumnoData.fase||1)>=2?`<button class="btn-primary" id="btnFase2" onclick="guardarFase2()">Guardar documentos →</button>`:''}
@@ -1375,7 +1375,7 @@ window.guardarFase2 = async function(){
     setErr('errorFase2','Faltan campos o archivos requeridos.');return;
   }
   // Validar tamaño de archivos (máx 5 MB cada uno)
-  for(const [nombre,archivo] of [['INE',ineF],['Constancia IMSS',imssF],['Credencial',credF]]){
+  for(const [nombre,archivo] of [['INE',ineF],['Constancia de Vigencia IMSS',imssF],['Credencial',credF]]){
     if(archivo.size>MAX_FILE_BYTES){setErr('errorFase2',nombre+' supera el límite de 5 MB ('+Math.round(archivo.size/1024)+' KB). Comprime o reduce el PDF antes de subirlo.');return;}
   }
   // Validar que la fecha de generación no sea futura ni mayor a 7 días de antigüedad
@@ -1383,7 +1383,7 @@ window.guardarFase2 = async function(){
   const hace7 = new Date(); hace7.setDate(hace7.getDate()-7); hace7.setHours(0,0,0,0);
   const fechaGen = new Date(vig+'T12:00:00');
   if(fechaGen > hoy){setErr('errorFase2','La fecha de generación no puede ser futura.');return;}
-  if(fechaGen < hace7){setErr('errorFase2','La constancia tiene más de 7 días. Descarga una nueva en serviciosdigitales.imss.gob.mx');return;}
+  if(fechaGen < hace7){setErr('errorFase2','La Constancia de Vigencia IMSS tiene más de 7 días. Descarga la más reciente en: https://serviciosdigitales.imss.gob.mx/gestionAsegurados-web-externo/vigencia');return;}
   setBtn('btnFase2',true,'Subiendo...');
   try{
     const [ineB,imssB,credB]=await Promise.all([toB64(ineF),toB64(imssF),toB64(credF)]);
@@ -2115,9 +2115,9 @@ window.verDocs = function(key){
 
     // Definición fija de los 3 documentos requeridos
     const docsDef = [
-      { id:'ineFile',   label:'INE / Identificación oficial',      icon:'🪪' },
-      { id:'credFile',  label:'Credencial escolar',                 icon:'🎓' },
-      { id:'imssFile',  label:'Número de Seguro Social (IMSS)',     icon:'🏥' },
+      { id:'ineFile',   label:'Credencial de Elector INE (ambos lados)', icon:'🪪' },
+      { id:'credFile',  label:'Credencial SABES (ambos lados, firmada)',  icon:'🎓' },
+      { id:'imssFile',  label:'Constancia de Vigencia IMSS',         icon:'🏥' },
     ];
 
     // Pagos
