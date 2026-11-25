@@ -870,20 +870,19 @@ window.votarItinerario = async function(n){
     await update(ref(db,'config/votos'), v);
     await update(ref(db,'config/votos_mat'), {[matKey]: n});
     setCookie('v_voto_it', n, 30);
-    // Crear registro mínimo en alumnos con fase 0 (si no existe ya)
+    // Guardar preferencia de itinerario en /creds si ya existe la clave
     try {
-      const alumSnap = await get(ref(db,'alumnos'));
-      const todosAlum = alumSnap.val()||{};
-      const yaExiste = Object.values(todosAlum).find(a=>a.matricula===matVal.toUpperCase());
-      if(!yaExiste){
-        await push(ref(db,'alumnos'),{
-          matricula: matVal.toUpperCase(),
-          fase: 0,
-          itinerarioVoto: n,
-          fechaVoto: new Date().toISOString()
-        });
+      const matKey = matToKey(matVal.toUpperCase());
+      const credSnap = await get(ref(db,'creds/'+matKey));
+      if(credSnap.exists()){
+        await update(ref(db,'creds/'+matKey), {itinerarioVoto: n});
+        // Si ya tiene alumnoKey, también actualizar en /alumnos
+        if(credSnap.val().alumnoKey){
+          await update(ref(db,'alumnos/'+credSnap.val().alumnoKey), {itinerarioVoto: n});
+        }
       }
-    } catch(e){ console.warn('No se pudo crear fase0:', e); }
+      // Si no existe en /creds aún, el voto queda solo en config/votos_mat — no crear duplicado
+    } catch(e){ console.warn('No se pudo guardar voto en creds:', e); }
   }
 
   // Ocultar campo matrícula (ya no necesario después de votar)
@@ -1827,6 +1826,34 @@ async function cargarAdmin(){
 }
 
 // Migrar alumnos existentes al índice ligero /creds
+// Limpiar registros duplicados (fase 0 sin contraseña — creados por bug de votación)
+window.limpiarDuplicados = async function(){
+  try {
+    const snap = await get(ref(db,'alumnos'));
+    const todos = snap.val()||{};
+    const entries = Object.entries(todos);
+    // Encontrar fase 0 sin pwHash (registros fantasma del bug de votación)
+    const fantasmas = entries.filter(([k,v]) => !v.pwHash && (v.fase===0||v.fase==null));
+    if(fantasmas.length===0){ alert('✅ No se encontraron registros duplicados.'); return; }
+    const lista = fantasmas.map(([k,v])=>`• ${v.matricula||'(sin matrícula)'} [${k}]`).join('\n');
+    if(!confirm(`Se encontraron ${fantasmas.length} registros sin contraseña (fase 0):\n\n${lista}\n\n¿Eliminarlos?`)) return;
+    for(const [key,v] of fantasmas){
+      await remove(ref(db,'alumnos/'+key));
+      await remove(ref(db,'adminIndex/'+key));
+      if(v.matricula){
+        const matKey = v.matricula.replace(/[.#$\[\]]/g,'_');
+        // Solo borrar /creds si su alumnoKey apunta a este fantasma
+        const credSnap = await get(ref(db,'creds/'+matKey));
+        if(credSnap.exists() && credSnap.val().alumnoKey===key && !credSnap.val().pwHash){
+          await remove(ref(db,'creds/'+matKey));
+        }
+      }
+    }
+    alert(`✅ Se eliminaron ${fantasmas.length} registros duplicados. Recarga el panel.`);
+    cargarAdmin();
+  } catch(e){ alert('Error: '+e.message); }
+}
+
 window.migrarCreds = async function(){
   if(!confirm('¿Crear índice /creds para todos los alumnos existentes? (Operación única, no borra datos)')) return;
   try {
@@ -2107,16 +2134,49 @@ window.verDocs=function(key){
       document.body.appendChild(modal);
     }
     document.getElementById('modalDocsNombre').textContent='📄 Documentos — '+(v.nombres||'')+' '+(v.apP||'');
-    document.getElementById('modalDocsLista').innerHTML=todos.map(doc=>`
-      <a href="${doc.d}" target="_blank" rel="noopener"
-         style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px solid #D2DCE8;border-radius:10px;text-decoration:none;color:#1A2332;font-size:13px;font-weight:600;transition:background .12s"
-         onmouseover="this.style.background='#F0F7FF'" onmouseout="this.style.background=''">
+    // Guardar docs en variable global para acceso desde onclick
+    window._docsActuales = todos;
+    document.getElementById('modalDocsLista').innerHTML=todos.map((doc,i)=>`
+      <button onclick="abrirDocumento(${i})"
+         style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px solid #D2DCE8;border-radius:10px;text-decoration:none;color:#1A2332;font-size:13px;font-weight:600;transition:background .12s;background:#fff;cursor:pointer;width:100%;text-align:left"
+         onmouseover="this.style.background='#F0F7FF'" onmouseout="this.style.background='#fff'">
         <span style="font-size:20px">${doc.t.startsWith('Comprobante')?'🧾':'📄'}</span>
         <span>${doc.t}</span>
         <span style="margin-left:auto;font-size:11px;color:#0A7455;font-weight:700">Abrir →</span>
-      </a>`).join('');
+      </button>`).join('');
     modal.style.display='block';
   });
+}
+
+// Convierte base64 a Blob y abre en nueva pestaña (evita bloqueo de data: URLs)
+window.abrirDocumento = function(i){
+  const doc = (window._docsActuales||[])[i];
+  if(!doc||!doc.d) return;
+  try {
+    // doc.d puede ser "data:application/pdf;base64,XXXX" o solo el base64
+    let b64 = doc.d;
+    let mime = 'application/pdf';
+    if(b64.startsWith('data:')){
+      const sep = b64.indexOf(',');
+      const header = b64.substring(5, sep); // e.g. "application/pdf;base64"
+      mime = header.split(';')[0];
+      b64 = b64.substring(sep+1);
+    }
+    const bytes = atob(b64);
+    const arr = new Uint8Array(bytes.length);
+    for(let j=0;j<bytes.length;j++) arr[j]=bytes.charCodeAt(j);
+    const blob = new Blob([arr], {type: mime});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 5000);
+  } catch(e){
+    alert('No se pudo abrir el documento: '+e.message);
+  }
 }
 
 window.exportarCSV=async function(){
@@ -2590,6 +2650,7 @@ window.borrarAlumno = async function(){
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="admin-btn btn-doc" onclick="recargarAdmin()">🔄 Actualizar</button>
           <button class="admin-btn btn-conf" onclick="exportarCSV()">⬇️ CSV</button>
+          <button class="admin-btn" style="background:#C8000A;color:#fff" onclick="limpiarDuplicados()" title="Elimina registros fantasma (fase 0 sin contraseña)">🧹 Limpiar duplicados</button>
           <button class="admin-btn" style="background:#7C3AED;color:#fff" onclick="migrarCreds()" title="Crea índice /creds para login rápido">⚡ Migrar /creds</button>
           <button class="admin-btn" style="background:#1565C0;color:#fff" onclick="migrarAsientos()" title="Sincroniza /config/asientos desde /alumnos">🚐 Migrar asientos</button>
           <button class="admin-btn" style="background:#0A7455;color:#fff" onclick="migrarAdminIndex()" title="Crea índice ligero para carga rápida del panel">⚡ Migrar índice admin</button>
